@@ -8,9 +8,14 @@ link_directories(${LLVM_LIBRARY_DIRS})
 
 #add_subdirectory(src/lib)  # Use your pass name here.
 
-add_library(ExtractPass MODULE
-    # List your source files here.
-    src/lib/ct-fuzz-extract-expr.cpp
+#add_library(ExtractPass MODULE
+#    # List your source files here.
+#    src/lib/ct-fuzz-extract-expr.cpp
+#)
+
+add_library(CTFuzzInstrument MODULE
+  src/lib/ct-fuzz-instrument.cpp
+  src/lib/ct-fuzz-naming.cpp
 )
 
 find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config-3.9 llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")
@@ -50,14 +55,19 @@ execute_process(
 
 # LLVM is (typically) built with no C++ RTTI. We need to match that;
 # otherwise, we'll get linker errors about missing RTTI data.
-set_target_properties(ExtractPass PROPERTIES
+#set_target_properties(ExtractPass PROPERTIES
+#    COMPILE_FLAGS "-fno-rtti"
+#)
+set_target_properties(CTFuzzInstrument PROPERTIES
     COMPILE_FLAGS "-fno-rtti"
 )
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)
-    set_target_properties(ExtractPass PROPERTIES
+    set_target_properties(CTFuzzInstrument PROPERTIES
         LINK_FLAGS "-undefined dynamic_lookup"
     )
 endif(APPLE)
+
+#target_link_libraries(CTFuzzInstrument ${LLVM_LIBS} ${LLVM_SYSTEM_LIBS} ${LLVM_LDFLAGS})

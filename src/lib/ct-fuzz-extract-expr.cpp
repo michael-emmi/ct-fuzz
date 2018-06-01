@@ -227,7 +227,17 @@ bool ExtractExprs::runOnModule(Module &M) {
     }
 
     if (!contractBlocks.empty()) {
-      auto *newF = CodeExtractor(contractBlocks).extractCodeRegion();
+      for (auto b : contractBlocks)
+        errs() << *b << "\n\n";
+      auto ce = CodeExtractor(contractBlocks);
+      assert(ce.isEligible() && "Not eligible for extraction");
+      auto *newF = ce.extractCodeRegion();
+      errs() << "========";
+      newF->getReturnType()->print(errs());
+      errs() << "========";
+      errs() << *newF << '\n';
+      errs() << "========";
+      errs() << "========";
 
       std::vector<CallInst*> Is;
       for (auto V : newF->users())
