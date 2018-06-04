@@ -8,9 +8,12 @@
 #define PUBLIC_VALUE_MAX_COUNT 1000
 char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT];
 
-void __ct_fuzz_assume(bool cond) {
-  if (!cond)
+void __ct_fuzz_assume(bool cond, char* msg) {
+  if (!cond) {
+    if (msg)
+      printf("%s\n", msg);
     exit(1);
+  }
 }
 
 unsigned char* __ct_fuzz_run_idx;
@@ -40,7 +43,7 @@ void __ct_fuzz_handle_public_value(char* src, size_t size) {
     memcpy(dest, src, size);
   } else {
     char* v = __ct_fuzz_public_values[__ct_fuzz_public_value_check_idx++];
-    __ct_fuzz_assume(memcmp(src, v, size) == 0);
+    __ct_fuzz_assume(memcmp(src, v, size) == 0, "Public values mismatch.");
   }
 }
 
