@@ -16,6 +16,7 @@ link_directories(${LLVM_LIBRARY_DIRS})
 add_library(CTFuzzInstrument MODULE
   src/lib/ct-fuzz-instrument.cpp
   src/lib/ct-fuzz-naming.cpp
+  src/lib/ct-fuzz-options.cpp
 )
 
 find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config-3.9 llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")

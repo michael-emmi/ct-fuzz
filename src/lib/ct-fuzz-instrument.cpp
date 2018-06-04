@@ -9,6 +9,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "ct-fuzz-naming.h"
+#include "ct-fuzz-options.h"
 
 #include <utility>
 #include <vector>
@@ -100,6 +101,21 @@ void insertPublicInHandleFuncs(Module& M, Function* specF) {
   getFunction(M, Naming::PUBLIC_IN_FUNC)->eraseFromParent();
 }
 
+inline void createCallToRWF(IRBuilder<>& IRB, Function* RWF, Value* A, Value* CI) {
+  auto P = IRB.CreateBitCast(A, RWF->arg_begin()->getType());
+  IRB.CreateCall(RWF, {P, CI});
+}
+
+argInfo readWriteValue(IRBuilder<>& IRB, Module& M, Function* RWF, Value* arg) {
+  Type* T = arg->getType();
+  auto DL = M.getDataLayout();
+  uint64_t size = DL.getTypeStoreSize(T);
+  auto CI = ConstantInt::get((++RWF->arg_begin())->getType(), size);
+  auto A = IRB.CreateAlloca(T);
+  createCallToRWF(IRB, RWF, A, CI);
+  return std::make_pair(A, CI);
+}
+
 Function* buildReadAndCheckFunc(Module& M, Function* specF) {
   Function* F = getFunction(M, "__ct_fuzz_read_and_check_inputs");
   Function* stdinRF = getFunction(M, "__ct_fuzz_stdin_read");
@@ -110,26 +126,10 @@ Function* buildReadAndCheckFunc(Module& M, Function* specF) {
   BasicBlock* B = BasicBlock::Create(M.getContext(), "", F);
   IRBuilder<> IRB(B);
 
-  auto callClosure = [&IRB](Function* RWF, Value* A, Value* CI) -> void {
-    auto P = IRB.CreateBitCast(A, RWF->arg_begin()->getType());
-    IRB.CreateCall(RWF, {P, CI});
-  };
-
-  // horrible C++
-  auto rwClosure = [&IRB, &M, &callClosure](Function* RWF, Value* arg) -> argInfo {
-    Type* T = arg->getType();
-    auto DL = M.getDataLayout();
-    uint64_t size = DL.getTypeStoreSize(T);
-    auto CI = ConstantInt::get((++RWF->arg_begin())->getType(), size);
-    auto A = IRB.CreateAlloca(T);
-    callClosure(RWF, A, CI);
-    return std::make_pair(A, CI);
-  };
-
   // create two copies of input variables and read values into them
   std::vector<argInfoP> vps;
   for (auto& arg : specF->args()) {
-    vps.push_back(std::make_pair(rwClosure(stdinRF, &arg), rwClosure(stdinRF, &arg)));
+    vps.push_back(std::make_pair(readWriteValue(IRB, M, stdinRF, &arg), readWriteValue(IRB, M, stdinRF, &arg)));
   }
 
   // run spec once
@@ -153,12 +153,12 @@ Function* buildReadAndCheckFunc(Module& M, Function* specF) {
   for (auto& v : vps) {
     auto P = v.first.first;
     auto C = v.first.second;
-    callClosure(pipeWF, P, C);
+    createCallToRWF(IRB, pipeWF, P, C);
   }
   for (auto& v : vps) {
     auto P = v.second.first;
     auto C = v.second.second;
-    callClosure(pipeWF, P, C);
+    createCallToRWF(IRB, pipeWF, P, C);
   }
 
   // create ret
@@ -175,25 +175,9 @@ void buildExecFunc(Module& M, Function* srcF) {
   BasicBlock* B = BasicBlock::Create(M.getContext(), "", F);
   IRBuilder<> IRB(B);
 
-  auto callClosure = [&IRB](Function* RWF, Value* A, Value* CI) -> void {
-    auto P = IRB.CreateBitCast(A, RWF->arg_begin()->getType());
-    IRB.CreateCall(RWF, {P, CI});
-  };
-
-  // horrible C++
-  auto rwClosure = [&IRB, &M, &callClosure](Function* RWF, Value* arg) -> argInfo {
-    Type* T = arg->getType();
-    auto DL = M.getDataLayout();
-    uint64_t size = DL.getTypeStoreSize(T);
-    auto CI = ConstantInt::get((++RWF->arg_begin())->getType(), size);
-    auto A = IRB.CreateAlloca(T);
-    callClosure(RWF, A, CI);
-    return std::make_pair(A, CI);
-  };
-
   std::vector<Value*> newArgs;
   for (auto& arg : srcF->args()) {
-    auto A = rwClosure(pipeRF, &arg).first;
+    auto A = readWriteValue(IRB, M, pipeRF, &arg).first;
     newArgs.push_back(IRB.CreateLoad(A));
   }
 
@@ -212,12 +196,9 @@ Function* getSpecFunction(Module& M) {
 }
 
 bool CTFuzzInstrument::runOnModule(Module& M) {
-  //// TODO: get proper function name/argument
-  Function* srcF = getFunction(M, "foo");
+  Function* srcF = getFunction(M, CTFuzzOptions::EntryPoint);
   Function* specF = getSpecFunction(M);
   insertPublicInHandleFuncs(M, specF);
-
-  errs() << "inserted" << "\n";
 
   buildReadAndCheckFunc(M, specF);
   buildExecFunc(M, srcF);
