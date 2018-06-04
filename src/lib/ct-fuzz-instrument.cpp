@@ -26,14 +26,19 @@ Function* getFunction(Module& M, std::string name) {
   return f;
 }
 
-Function* buildPublicInHandleFunc(Module* M, Value* V) {
+Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
   static unsigned counter = 0;
-  Type* T = V->getType();
   auto DL = M->getDataLayout();
+  //auto nArgs = CI->getNumOperands();
+  Type* T = CI->getArgOperand(0)->getType();
+  std::vector<Type*> ts;
 
   Function* CF = getFunction(*M, Naming::PUBLIC_IN_HANDLE_FUNC);
 
-  FunctionType* newFT = FunctionType::get(Type::getVoidTy(M->getContext()), {V->getType()}, false);
+  for(unsigned i = 0; i < CI->getNumArgOperands(); ++i)
+    ts.push_back(CI->getArgOperand(i)->getType());
+
+  FunctionType* newFT = FunctionType::get(Type::getVoidTy(M->getContext()), ts, false);
   std::string newFN = Naming::PUBLIC_IN_FUNC + "_" + std::to_string(counter);
   Function* newF = Function::Create(newFT, GlobalValue::InternalLinkage, newFN, M);
 
@@ -41,17 +46,23 @@ Function* buildPublicInHandleFunc(Module* M, Value* V) {
   IRBuilder<> IRB(B);
 
   // create a box for this value and fill it in the box
-  Value* ai = IRB.CreateAlloca(T);
-  IRB.CreateStore(&*newF->arg_begin(), ai);
-  if (!T->isAggregateType()) {
+  //Value* P = IRB.CreateAlloca(T);
+  Value* P = nullptr;
+  Value* S = nullptr;
+  assert(!T->isAggregateType() && "Doesn't support aggregate types");
+
+  if (!T->isPointerTy()) {
+    P = IRB.CreateAlloca(T);
+    IRB.CreateStore(&*newF->arg_begin(), P);
     uint64_t size = DL.getTypeSizeInBits(T) >> 3;
-    // the `size` arg
-    auto CI = ConstantInt::get((++CF->arg_begin())->getType(), size);
-    // the pointer arg
-    auto P = IRB.CreateBitCast(ai, CF->arg_begin()->getType());
-    IRB.CreateCall(CF, {P, CI});
-  } else
-    assert(false && "Doesn't support aggregate types");
+    S = ConstantInt::get((++CF->arg_begin())->getType(), size);
+    P = IRB.CreateBitCast(P, CF->arg_begin()->getType());
+  } else {
+    P = CI->getArgOperand(0);
+    S = CI->getArgOperand(1);
+  }
+
+  IRB.CreateCall(CF, {P, S});
 
   // add return
   IRB.CreateRetVoid();
@@ -69,7 +80,7 @@ std::vector<CallInst*> getPublicInCalls(Function* F) {
         f = dyn_cast<Function>(ci->getCalledValue()->stripPointerCasts());
       if (f && f->hasName()) {
         if (f->getName().str() == Naming::PUBLIC_IN_FUNC) {
-          assert(ci->getNumArgOperands() == 1 && "Assume only one argument to public_in calls");
+          assert((ci->getNumArgOperands() == 1 || ci->getNumArgOperands() == 2) && "Assume only one or two arguments to public_in calls");
           cis.push_back(ci);
         }
       }
@@ -82,8 +93,7 @@ void insertPublicInHandleFuncs(Module& M, Function* specF) {
   auto cis = getPublicInCalls(specF);
   std::map<CallInst*, Function*> bindings;
   for (auto ci : cis) {
-    Value* arg = ci->getArgOperand(0);
-    auto F = buildPublicInHandleFunc(&M, arg);
+    auto F = buildPublicInHandleFunc(&M, ci);
     bindings[ci] = F;
   }
 
@@ -91,7 +101,10 @@ void insertPublicInHandleFuncs(Module& M, Function* specF) {
   for (auto& binding: bindings) {
     CallInst* oc = binding.first;
     Function* f = binding.second;
-    auto ci = CallInst::Create(f, {oc->getArgOperand(0)}, "", oc);
+    std::vector<Value*> args;
+    for (unsigned i = 0; i < oc->getNumArgOperands(); ++i)
+      args.push_back(oc->getArgOperand(i));
+    auto ci = CallInst::Create(f, args, "", oc);
     oc->replaceAllUsesWith(ci);
   }
 
@@ -116,50 +129,85 @@ argInfo readWriteValue(IRBuilder<>& IRB, Module& M, Function* RWF, Value* arg) {
   return std::make_pair(A, CI);
 }
 
+Value* allocateAndReadChunk(IRBuilder<>& IRB, Module& M, Function* RWF, Value* arg) {
+  auto mallocF = getFunction(M, "malloc");
+  auto lenT = mallocF->arg_begin()->getType();
+  auto len = IRB.CreateLoad(readWriteValue(IRB, M, RWF, ConstantInt::get(lenT, 0)).first);
+  CallInst* mallocC = IRB.CreateCall(mallocF, {len});
+  createCallToRWF(IRB, RWF, mallocC, len);
+  return len;
+}
+
 Function* buildReadAndCheckFunc(Module& M, Function* specF) {
   Function* F = getFunction(M, "__ct_fuzz_read_and_check_inputs");
   Function* stdinRF = getFunction(M, "__ct_fuzz_stdin_read");
-  Function* pipeWF = getFunction(M, "__ct_fuzz_input_pipe_write");
+  Function* iPipeWF = getFunction(M, "__ct_fuzz_input_pipe_write");
+  Function* cPipeWF = getFunction(M, "__ct_fuzz_cmd_pipe_write");
   Function* sCheckF = getFunction(M, "__ct_fuzz_input_check_start");
+  Function* maxF = getFunction(M, "__ct_fuzz_size_t_max");
 
 
   BasicBlock* B = BasicBlock::Create(M.getContext(), "", F);
   IRBuilder<> IRB(B);
 
   // create two copies of input variables and read values into them
-  std::vector<argInfoP> vps;
-  for (auto& arg : specF->args()) {
-    vps.push_back(std::make_pair(readWriteValue(IRB, M, stdinRF, &arg), readWriteValue(IRB, M, stdinRF, &arg)));
-  }
-
-  // run spec once
-  auto GA = [&IRB](std::vector<argInfoP>& ps, unsigned char count) -> std::vector<Value*> {
-    // what is this
-    std::vector<Value*> vs;
-    for(auto& p : ps) {
-      Value* A = count? p.second.first : p.first.first;
-      vs.push_back(IRB.CreateLoad(A));
+  // broken should read values instance by instance
+  std::vector<argInfo> vp1;
+  std::vector<argInfo> vp2;
+  std::vector<Value*> dlen1;
+  std::vector<Value*> dlen2;
+  auto GI = [&IRB, &specF, &M, &stdinRF](std::vector<argInfo>& vp, std::vector<Value*>& dlen) -> void {
+    for (auto& arg : specF->args()) {
+      if (!arg.getType()->isPointerTy())
+        vp.push_back(readWriteValue(IRB, M, stdinRF, &arg));
+      else {
+        auto len = allocateAndReadChunk(IRB, M, stdinRF, &arg);
+        dlen.push_back(len);
+        vp.push_back(std::make_pair(&arg, len));
+      }
     }
-    return vs;
   };
+  GI(vp1, dlen1); GI(vp2, dlen2);
+  assert(vp1.size() == vp2.size() && dlen1.size() == dlen2.size());
 
-  IRB.CreateCall(specF, GA(vps, 0));
+  auto GA = [&IRB](std::vector<argInfo>& ps) -> std::vector<Value*> {
+    std::vector<Value*> args;
+    for(unsigned i = 0; i < ps.size(); ++i) {
+      auto V = ps[i].first;
+      auto S = ps[i].second;
+      if (isa<ConstantInt>(S))
+        args.push_back(IRB.CreateLoad(V));
+      else
+        args.push_back(V);
+    }
+    return args;
+  };
+  // run spec once
+  IRB.CreateCall(specF, GA(vp1));
   // change to check mode
   IRB.CreateCall(sCheckF, {});
   // run spec twice
-  IRB.CreateCall(specF, GA(vps, 1));
+  IRB.CreateCall(specF, GA(vp2));
 
   // write input set one to the pipe
-  for (auto& v : vps) {
-    auto P = v.first.first;
-    auto C = v.first.second;
-    createCallToRWF(IRB, pipeWF, P, C);
-  }
-  for (auto& v : vps) {
-    auto P = v.second.first;
-    auto C = v.second.second;
-    createCallToRWF(IRB, pipeWF, P, C);
-  }
+  auto WIP = [&IRB, &iPipeWF](std::vector<argInfo>& vp) -> void {
+    for (auto& v : vp) {
+      auto P = v.first;
+      auto C = v.second;
+      createCallToRWF(IRB, iPipeWF, P, C);
+    }
+  };
+  WIP(vp1); WIP(vp2);
+
+  // write maximum size to the command pipe
+  auto WCP = [&IRB, &cPipeWF, &dlen1, &dlen2, &maxF]() -> void {
+    for (unsigned i = 0; i < dlen1.size(); ++i) {
+      auto dl1 = dlen1[i];
+      auto dl2 = dlen2[i];
+      IRB.CreateCall(cPipeWF, {IRB.CreateCall(maxF, {dl1, dl2})});
+    }
+  };
+  WCP(); WCP();
 
   // create ret
   IRB.CreateRetVoid();
@@ -169,16 +217,28 @@ Function* buildReadAndCheckFunc(Module& M, Function* specF) {
 void buildExecFunc(Module& M, Function* srcF) {
   // read input from the pipe
   Function* F = getFunction(M, "__ct_fuzz_exec");
-  Function* pipeRF = getFunction(M, "__ct_fuzz_input_pipe_read");
-
+  Function* iPipeRF = getFunction(M, "__ct_fuzz_input_pipe_read");
+  Function* cPipeWF = getFunction(M, "__ct_fuzz_cmd_pipe_read");
 
   BasicBlock* B = BasicBlock::Create(M.getContext(), "", F);
   IRBuilder<> IRB(B);
 
   std::vector<Value*> newArgs;
   for (auto& arg : srcF->args()) {
-    auto A = readWriteValue(IRB, M, pipeRF, &arg).first;
-    newArgs.push_back(IRB.CreateLoad(A));
+    if (!arg.getType()->isPointerTy()) {
+      auto A = readWriteValue(IRB, M, iPipeRF, &arg).first;
+      newArgs.push_back(IRB.CreateLoad(A));
+    } else {
+      // read malloc length first
+      auto aLen = IRB.CreateCall(cPipeWF, {});
+      // call malloc
+      // TODO: initialize this chunk of memory
+      auto mi = IRB.CreateCall(getFunction(M, "malloc"), {aLen});
+      // read length in
+      auto dLen = readWriteValue(IRB, M, iPipeRF, &arg).first;
+      // read value in
+      createCallToRWF(IRB, iPipeRF, mi, dLen);
+    }
   }
 
   // call src function
@@ -198,8 +258,8 @@ Function* getSpecFunction(Module& M) {
 bool CTFuzzInstrument::runOnModule(Module& M) {
   Function* srcF = getFunction(M, CTFuzzOptions::EntryPoint);
   Function* specF = getSpecFunction(M);
-  insertPublicInHandleFuncs(M, specF);
 
+  insertPublicInHandleFuncs(M, specF);
   buildReadAndCheckFunc(M, specF);
   buildExecFunc(M, srcF);
 

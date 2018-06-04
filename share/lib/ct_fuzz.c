@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
-char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT];
+//char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT];
 
 void __ct_fuzz_assume(bool cond, char* msg) {
   if (!cond) {
@@ -14,6 +14,13 @@ void __ct_fuzz_assume(bool cond, char* msg) {
       printf("%s\n", msg);
     exit(1);
   }
+}
+
+size_t __ct_fuzz_size_t_max(size_t a, size_t b){
+  if (a > b)
+    return a;
+  else
+    return b;
 }
 
 unsigned char* __ct_fuzz_run_idx;
@@ -32,6 +39,10 @@ void __ct_fuzz_input_check_start(void) {
   __ct_fuzz_input_check = true;
 }
 
+void __ct_fuzz_input_record_start(void) {
+  __ct_fuzz_input_check = false;
+}
+
 void __ct_fuzz_handle_public_value(char* src, size_t size) {
   static char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT] = {NULL};
   static unsigned __ct_fuzz_public_value_update_idx = 0;
@@ -48,6 +59,7 @@ void __ct_fuzz_handle_public_value(char* src, size_t size) {
 }
 
 int __ct_fuzz_input_pipe[2];
+int __ct_fuzz_cmd_pipe[2];
 
 void __ct_fuzz_input_pipe_write(void* buf, size_t size) {
   write(__ct_fuzz_input_pipe[1], buf, size);
@@ -55,6 +67,16 @@ void __ct_fuzz_input_pipe_write(void* buf, size_t size) {
 
 void __ct_fuzz_input_pipe_read(void* buf, size_t size) {
   read(__ct_fuzz_input_pipe[0], buf, size);
+}
+
+void __ct_fuzz_cmd_pipe_write(size_t size) {
+  write(__ct_fuzz_cmd_pipe[1], &size, sizeof(size_t));
+}
+
+size_t __ct_fuzz_cmd_pipe_read() {
+  size_t size;
+  read(__ct_fuzz_cmd_pipe[0], &size, sizeof(size_t));
+  return size;
 }
 
 void __ct_fuzz_stdin_read(void* buf, size_t size) {
@@ -71,6 +93,7 @@ void __ct_fuzz_initialize(void) {
   *__ct_fuzz_run_idx = 0U;
   // initialize a pipe to transfer input data
   pipe(__ct_fuzz_input_pipe);
+  pipe(__ct_fuzz_cmd_pipe);
 }
 
 void __ct_fuzz_switch(void) {
