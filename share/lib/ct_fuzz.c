@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <stdio.h>
+#include <sys/wait.h>
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
 //char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT];

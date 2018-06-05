@@ -26,6 +26,11 @@ Function* getFunction(Module& M, std::string name) {
   return f;
 }
 
+inline Value* getSecondArg(Function* F) {
+  auto I = F->arg_begin();
+  return ++I;
+}
+
 Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
   static unsigned counter = 0;
   auto DL = M->getDataLayout();
@@ -55,7 +60,7 @@ Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
     P = IRB.CreateAlloca(T);
     IRB.CreateStore(&*newF->arg_begin(), P);
     uint64_t size = DL.getTypeSizeInBits(T) >> 3;
-    S = ConstantInt::get((++CF->arg_begin())->getType(), size);
+    S = ConstantInt::get(getSecondArg(CF)->getType(), size);
     P = IRB.CreateBitCast(P, CF->arg_begin()->getType());
   } else {
     P = CI->getArgOperand(0);
@@ -123,7 +128,7 @@ argInfo readWriteValue(IRBuilder<>& IRB, Module& M, Function* RWF, Value* arg) {
   Type* T = arg->getType();
   auto DL = M.getDataLayout();
   uint64_t size = DL.getTypeStoreSize(T);
-  auto CI = ConstantInt::get((++RWF->arg_begin())->getType(), size);
+  auto CI = ConstantInt::get(getSecondArg(RWF)->getType(), size);
   auto A = IRB.CreateAlloca(T);
   createCallToRWF(IRB, RWF, A, CI);
   return std::make_pair(A, CI);
