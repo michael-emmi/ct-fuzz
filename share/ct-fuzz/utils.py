@@ -27,8 +27,6 @@ def timeout_killer(proc, timed_out):
 
 def try_command(cmd, cwd=None, console=False, timeout=None):
   args = top.args
-  console = (console or args.verbose or args.debug) and not args.quiet
-  filelog = args.debug
   output = ''
   proc = None
   timer = None
@@ -44,17 +42,7 @@ def try_command(cmd, cwd=None, console=False, timeout=None):
       timer = Timer(timeout, timeout_killer, [proc, timed_out])
       timer.start()
 
-    if console:
-      while True:
-        line = proc.stdout.readline()
-        if line:
-          output += line
-          print line,
-        elif proc.poll() is not None:
-          break
-      proc.wait
-    else:
-      output = proc.communicate()[0]
+    output = proc.communicate()[0]
 
     if timeout:
       timer.cancel()
@@ -65,7 +53,7 @@ def try_command(cmd, cwd=None, console=False, timeout=None):
       return output + ("\n%s timed out." % cmd[0])
     elif rc == -signal.SIGSEGV:
       raise Exception("segmentation fault")
-    elif rc and args.verifier != 'symbooglix':
+    elif rc:
       raise Exception(output)
     else:
       return output
@@ -77,6 +65,3 @@ def try_command(cmd, cwd=None, console=False, timeout=None):
   finally:
     if timeout and timer: timer.cancel()
     if proc: os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
-    if filelog:
-      with open(temporary_file(cmd[0], '.log', args), 'w') as f:
-        f.write(output)
