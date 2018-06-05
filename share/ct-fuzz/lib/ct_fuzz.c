@@ -7,7 +7,8 @@
 #include <sys/wait.h>
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
-//char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT];
+
+typedef unsigned char idx_t;
 
 void __ct_fuzz_assume(bool cond, char* msg) {
   if (!cond) {
@@ -24,32 +25,14 @@ size_t __ct_fuzz_size_t_max(size_t a, size_t b){
     return b;
 }
 
-unsigned char* __ct_fuzz_run_idx;
+//idx_t __ct_fuzz_run_idx;
 
-bool __ct_fuzz_input_check = false;
-
-bool __ct_fuzz_is_first_run(void) {
-  return *__ct_fuzz_run_idx == 0U;
-}
-
-bool __ct_fuzz_reset(void) {
-  return *__ct_fuzz_run_idx == 0;
-}
-
-void __ct_fuzz_input_check_start(void) {
-  __ct_fuzz_input_check = true;
-}
-
-void __ct_fuzz_input_record_start(void) {
-  __ct_fuzz_input_check = false;
-}
-
-void __ct_fuzz_handle_public_value(char* src, size_t size) {
+void __ct_fuzz_handle_public_value(char* src, size_t size, idx_t idx) {
   static char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT] = {NULL};
   static unsigned __ct_fuzz_public_value_update_idx = 0;
   static unsigned __ct_fuzz_public_value_check_idx = 0;
 
-  if (!__ct_fuzz_input_check) {
+  if (!idx) {
     char* dest = (char*)malloc(size);
     __ct_fuzz_public_values[__ct_fuzz_public_value_update_idx++] = dest;
     memcpy(dest, src, size);
@@ -57,27 +40,6 @@ void __ct_fuzz_handle_public_value(char* src, size_t size) {
     char* v = __ct_fuzz_public_values[__ct_fuzz_public_value_check_idx++];
     __ct_fuzz_assume(memcmp(src, v, size) == 0, "Public values mismatch.");
   }
-}
-
-int __ct_fuzz_input_pipe[2];
-int __ct_fuzz_cmd_pipe[2];
-
-void __ct_fuzz_input_pipe_write(void* buf, size_t size) {
-  write(__ct_fuzz_input_pipe[1], buf, size);
-}
-
-void __ct_fuzz_input_pipe_read(void* buf, size_t size) {
-  read(__ct_fuzz_input_pipe[0], buf, size);
-}
-
-void __ct_fuzz_cmd_pipe_write(size_t size) {
-  write(__ct_fuzz_cmd_pipe[1], &size, sizeof(size_t));
-}
-
-size_t __ct_fuzz_cmd_pipe_read() {
-  size_t size;
-  read(__ct_fuzz_cmd_pipe[0], &size, sizeof(size_t));
-  return size;
 }
 
 void __ct_fuzz_stdin_read(void* buf, size_t size) {
@@ -89,19 +51,14 @@ void* create_shared_memory(size_t size) {
 }
 
 void __ct_fuzz_initialize(void) {
-  // initialize shared data among processes
-  __ct_fuzz_run_idx = (unsigned char*)create_shared_memory(sizeof(unsigned char*));
-  *__ct_fuzz_run_idx = 0U;
-  // initialize a pipe to transfer input data
-  pipe(__ct_fuzz_input_pipe);
-  pipe(__ct_fuzz_cmd_pipe);
+  // nothing to do
 }
 
-void __ct_fuzz_switch(void) {
-  *__ct_fuzz_run_idx += 1;
-}
+//void __ct_fuzz_switch(void) {
+//  __ct_fuzz_run_idx += 1;
+//}
 
-void __ct_fuzz_read_and_check_inputs(void);
+void __ct_fuzz_read_inputs(void);
 /* supposed body
  * {
  *  read pub_input_i
@@ -121,34 +78,40 @@ void __ct_fuzz_read_and_check_inputs(void);
  * }
  */
 
-void __ct_fuzz_exec(void);
+void __ct_fuzz_exec(idx_t);
 /* supposed body
  * read input from pipe
  * call function in test
  */
 
-void __ct_fuzz_check_observations() {}
+void __ct_fuzz_spec(idx_t);
+
+void __ct_fuzz_check_observations() {
+  // TODO
+}
 
 void __ct_fuzz_main(void) {
-  static unsigned char counter = 0;
   __ct_fuzz_initialize();
-  __ct_fuzz_read_and_check_inputs();
-  do {
+  __ct_fuzz_read_inputs();
+
+  for (idx_t i = 0; i < 2; ++i)
+    __ct_fuzz_spec(i);
+
+  for (idx_t i = 0; i < 2; ++i) {
     pid_t pid = fork();
     if (pid == -1)
       exit(EXIT_FAILURE);
     else if (pid == 0) {
       // in the child process, good luck everybody else
-      __ct_fuzz_exec();
+      __ct_fuzz_exec(i);
       exit(EXIT_SUCCESS);
     }
     else {
       int status;
       (void)waitpid(pid, &status, 0);
-      __ct_fuzz_switch();
-      counter++;
     }
-  } while(counter < 2);
+  }
+
   __ct_fuzz_check_observations();
 }
 
