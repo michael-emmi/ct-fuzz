@@ -63,8 +63,8 @@ Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
     S = ConstantInt::get(getSecondArg(CF)->getType(), size);
     P = IRB.CreateBitCast(P, CF->arg_begin()->getType());
   } else {
-    P = CI->getArgOperand(0);
-    S = CI->getArgOperand(1);
+    P = newF->arg_begin();
+    S = IRB.CreateZExtOrBitCast(getSecondArg(newF), getSecondArg(CF)->getType());
   }
 
   IRB.CreateCall(CF, {P, S});
