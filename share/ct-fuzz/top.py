@@ -57,7 +57,9 @@ def compile_bc_to_exec(args):
     llc_cmd = ['llc', '-filetype=obj', args.opt_out_file]
     try_command(llc_cmd)
     clang_cmd = ['clang', args.input_file_name+'_post_inst.o']
-    try_command(clang_cmd)
+    clang_cmd += ['-L`jemalloc-config --libdir`', '-Wl,-rpath,`jemalloc-config --libdir`', '-ljemalloc', '`jemalloc-config --libs`']
+    clang_cmd = ' '.join(clang_cmd)
+    try_command(clang_cmd, shell=True)
 
 def make_test_binary(args):
     compile_c_file(args, args.input_file)

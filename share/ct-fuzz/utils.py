@@ -25,17 +25,17 @@ def timeout_killer(proc, timed_out):
     timed_out[0] = True
     os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
 
-def try_command(cmd, cwd=None, console=False, timeout=None):
+def try_command(cmd, cwd=None, console=False, timeout=None, shell=False):
   args = top.args
   output = ''
   proc = None
   timer = None
   try:
     if args.debug:
-      print "Running %s" % " ".join(cmd)
+      print "Running %s" % cmd if shell else " ".join(cmd)
 
     proc = subprocess.Popen(cmd, cwd=cwd, preexec_fn=os.setsid,
-      stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell)
 
     if timeout:
       timed_out = [False]
