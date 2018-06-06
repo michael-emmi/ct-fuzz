@@ -25,14 +25,14 @@ size_t __ct_fuzz_size_t_max(size_t a, size_t b){
     return b;
 }
 
-//idx_t __ct_fuzz_run_idx;
+idx_t __ct_fuzz_run_idx;
 
-void __ct_fuzz_handle_public_value(char* src, size_t size, idx_t idx) {
+void __ct_fuzz_handle_public_value(char* src, size_t size) {
   static char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT] = {NULL};
   static unsigned __ct_fuzz_public_value_update_idx = 0;
   static unsigned __ct_fuzz_public_value_check_idx = 0;
 
-  if (!idx) {
+  if (!__ct_fuzz_run_idx) {
     char* dest = (char*)malloc(size);
     __ct_fuzz_public_values[__ct_fuzz_public_value_update_idx++] = dest;
     memcpy(dest, src, size);
@@ -94,16 +94,16 @@ void __ct_fuzz_main(void) {
   __ct_fuzz_initialize();
   __ct_fuzz_read_inputs();
 
-  for (idx_t i = 0; i < 2; ++i)
-    __ct_fuzz_spec(i);
+  for (__ct_fuzz_run_idx = 0; __ct_fuzz_run_idx < 2; ++__ct_fuzz_run_idx)
+    __ct_fuzz_spec(__ct_fuzz_run_idx);
 
-  for (idx_t i = 0; i < 2; ++i) {
+  for (__ct_fuzz_run_idx = 0; __ct_fuzz_run_idx < 2; ++__ct_fuzz_run_idx) {
     pid_t pid = fork();
     if (pid == -1)
       exit(EXIT_FAILURE);
     else if (pid == 0) {
       // in the child process, good luck everybody else
-      __ct_fuzz_exec(i);
+      __ct_fuzz_exec(__ct_fuzz_run_idx);
       exit(EXIT_SUCCESS);
     }
     else {
