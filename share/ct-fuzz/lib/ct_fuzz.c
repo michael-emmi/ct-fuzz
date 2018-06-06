@@ -19,6 +19,8 @@ void __ct_fuzz_assume(bool cond, char* msg) {
 }
 
 size_t __ct_fuzz_size_t_max(size_t a, size_t b){
+  printf("size1: %lu\n", a);
+  printf("size2: %lu\n", b);
   if (a > b)
     return a;
   else
@@ -26,6 +28,10 @@ size_t __ct_fuzz_size_t_max(size_t a, size_t b){
 }
 
 idx_t __ct_fuzz_run_idx;
+
+void __ct_fuzz_memcpy_wrapper(char* dest, char* src, size_t num) {
+  memcpy(dest, src, num);
+}
 
 void __ct_fuzz_handle_public_value(char* src, size_t size) {
   static char* __ct_fuzz_public_values[PUBLIC_VALUE_MAX_COUNT] = {NULL};
@@ -35,7 +41,7 @@ void __ct_fuzz_handle_public_value(char* src, size_t size) {
   if (!__ct_fuzz_run_idx) {
     char* dest = (char*)malloc(size);
     __ct_fuzz_public_values[__ct_fuzz_public_value_update_idx++] = dest;
-    memcpy(dest, src, size);
+    __ct_fuzz_memcpy_wrapper(dest, src, size);
   } else {
     char* v = __ct_fuzz_public_values[__ct_fuzz_public_value_check_idx++];
     __ct_fuzz_assume(memcmp(src, v, size) == 0, "Public values mismatch.");
@@ -102,6 +108,7 @@ void __ct_fuzz_main(void) {
     if (pid == -1)
       exit(EXIT_FAILURE);
     else if (pid == 0) {
+      printf("malloc in main: %lu\n", (unsigned long)malloc(sizeof(int)));
       // in the child process, good luck everybody else
       __ct_fuzz_exec(__ct_fuzz_run_idx);
       exit(EXIT_SUCCESS);

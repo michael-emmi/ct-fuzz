@@ -241,7 +241,7 @@ CallInst* checkInputs(Module& M, Function* mainF, Function* specF, const BoxesLi
 CallInst* execInputFunc(Module& M, Function* mainF, Function* srcF, const BoxesList& boxes) {
   CallInst* TCI = getCallToExecFunc(mainF);
   Function* maxF = getFunction(M, "__ct_fuzz_size_t_max");
-  Function* memcpyF = getFunction(M, "memcpy");
+  Function* memcpyF = getFunction(M, "__ct_fuzz_memcpy_wrapper");
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
