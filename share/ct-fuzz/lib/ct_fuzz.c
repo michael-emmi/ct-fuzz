@@ -19,8 +19,6 @@ void __ct_fuzz_assume(bool cond, char* msg) {
 }
 
 size_t __ct_fuzz_size_t_max(size_t a, size_t b){
-  printf("size1: %lu\n", a);
-  printf("size2: %lu\n", b);
   if (a > b)
     return a;
   else
@@ -108,7 +106,6 @@ void __ct_fuzz_main(void) {
     if (pid == -1)
       exit(EXIT_FAILURE);
     else if (pid == 0) {
-      printf("malloc in main: %lu\n", (unsigned long)malloc(sizeof(int)));
       // in the child process, good luck everybody else
       __ct_fuzz_exec(__ct_fuzz_run_idx);
       exit(EXIT_SUCCESS);
