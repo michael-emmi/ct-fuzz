@@ -22,6 +22,7 @@ void* PREFIX(create_shared_memory)(size_t size) {
 
 void PREFIX(initialize_states)() {
   MONITORS = (HASH_T*)PREFIX(create_shared_memory)(2*sizeof(HASH_T));
+  MONITORS[1] = MONITORS[2];
 }
 
 #endif
