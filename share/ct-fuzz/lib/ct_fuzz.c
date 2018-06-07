@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/wait.h>
-//#include "ct-fuzz-debug.h"
+#include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
@@ -49,9 +49,9 @@ void PREFIX(stdin_read)(void* buf, size_t size) {
   read(0, buf, size);
 }
 
-
 void PREFIX(initialize)(void) {
-  PREFIX(initialize_states);
+  PREFIX(initialize_states)();
+  PREFIX(dbg_init)();
 }
 
 //void __ct_fuzz_switch(void) {
@@ -59,8 +59,8 @@ void PREFIX(initialize)(void) {
 //}
 
 void PREFIX(exec)(IDX_T);
-
 void PREFIX(spec)(IDX_T);
+void PREFIX(read_inputs)(void);
 
 void PREFIX(main)(void) {
   PREFIX(initialize)();
