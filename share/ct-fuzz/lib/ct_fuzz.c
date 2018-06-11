@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
+#include "ct-fuzz-observation.h"
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
 
@@ -85,7 +86,7 @@ void PREFIX(main)(void) {
     }
   }
 
-  //__ct_fuzz_check_observations();
+  PREFIX(check_observations)();
 }
 
 int main(void) {

@@ -28,7 +28,7 @@ void PREFIX(dbg_print_addr)(char* addr) {
 
 void PREFIX(dbg_init)() {
   DEBUG_ON = getenv("DEBUG");
-  printf("[dbg] debugging\n");
+  if (DEBUG_ON) printf("[dbg] debugging\n");
 }
 
 #endif

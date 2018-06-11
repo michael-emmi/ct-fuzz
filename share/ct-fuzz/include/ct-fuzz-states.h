@@ -13,7 +13,7 @@
 typedef unsigned long long HASH_T; 
 typedef unsigned char IDX_T;
 
-HASH_T* PREFIX(monitors);
+HASH_T* MONITORS;
 IDX_T RUN_ID;
 
 void* PREFIX(create_shared_memory)(size_t size) {
