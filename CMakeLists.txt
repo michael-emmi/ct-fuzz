@@ -2,21 +2,27 @@ cmake_minimum_required(VERSION 3.1)
 
 find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
-include_directories(${LLVM_INCLUDE_DIRS})
-include_directories(src/include)
-link_directories(${LLVM_LIBRARY_DIRS})
-
-#add_subdirectory(src/lib)  # Use your pass name here.
-
-#add_library(ExtractPass MODULE
-#    # List your source files here.
-#    src/lib/ct-fuzz-extract-expr.cpp
-#)
 
 add_library(CTFuzzInstrument MODULE
   src/lib/ct-fuzz-instrument.cpp
   src/lib/ct-fuzz-naming.cpp
   src/lib/ct-fuzz-options.cpp
+)
+
+add_library(xxHash MODULE
+  xxHash/xxhash.c)
+
+target_include_directories(CTFuzzInstrument PRIVATE
+  ${LLVM_INCLUDE_DIRS}
+  src/include
+)
+
+target_include_directories(xxHash PRIVATE
+  xxHash
+)
+
+target_link_libraries(CTFuzzInstrument
+  ${LLVM_LIBRARY_DIRS}
 )
 
 find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config-3.9 llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")
