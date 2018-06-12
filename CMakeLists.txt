@@ -21,9 +21,10 @@ target_include_directories(xxHash PRIVATE
   xxHash
 )
 
-target_link_libraries(CTFuzzInstrument
-  ${LLVM_LIBRARY_DIRS}
-)
+#target_link_libraries(CTFuzzInstrument
+#  ${LLVM_LIBRARY_DIRS}
+#)
+link_directories(${LLVM_LIBRARY_DIRS})
 
 find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config-3.9 llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")
 
