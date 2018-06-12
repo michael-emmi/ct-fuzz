@@ -5,13 +5,15 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "ct-fuzz-utils.h"
+#include "ct-fuzz-states.h"
 
 #define DEBUG_ON PREFIX(debug_on)
 #define DEBUG_PRINT PREFIX(dbg_print)
+#define DEBUG_PRINT_MSG PREFIX(dbg_print_msg)
 
 bool DEBUG_ON;
 
-void PREFIX(dbg_print)(char* type, char* value) { printf("[dbg] [%s, %s]\n", type, value); }
+void DEBUG_PRINT(char* type, char* value) { printf("[dbg] [%u] [%s, %s]\n", RUN_ID, type, value); }
 
 void PREFIX(dbg_print_cond)(bool cond) {
   if (DEBUG_ON)
@@ -26,9 +28,16 @@ void PREFIX(dbg_print_addr)(char* addr) {
   }
 }
 
+void DEBUG_PRINT_MSG(char* s) {
+  if (DEBUG_ON) {
+    printf("[dbg] %s", s);
+    printf("\n");
+  }
+}
+
 void PREFIX(dbg_init)() {
   DEBUG_ON = getenv("DEBUG");
-  if (DEBUG_ON) printf("[dbg] debugging\n");
+  DEBUG_PRINT_MSG("debugging");
 }
 
 #endif

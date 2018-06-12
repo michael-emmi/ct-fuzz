@@ -3,10 +3,13 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <signal.h>
 #include "xxhash.h"
 #include "ct-fuzz-utils.h"
 #include "ct-fuzz-states.h"
 #include "ct-fuzz-debug.h"
+
+#define STOP_SIGNAL 42
 
 void PREFIX(update_hash)(char* buf, size_t size) {
   HASH_T* old = &MONITORS[RUN_ID];
@@ -26,9 +29,11 @@ void PREFIX(update_monitor_by_addr)(char* addr) {
 
 void PREFIX(check_observations)() {
   if (MONITORS[0] != MONITORS[1]) {
-    int* p;
-    printf("[dbg] oops\n");
-    *p = 42;
+    //int* p;
+    //DEBUG_PRINT_MSG("oops");
+    //*p = 42;
+    DEBUG_PRINT_MSG("oops");
+    raise(STOP_SIGNAL);
   }
 }
 
