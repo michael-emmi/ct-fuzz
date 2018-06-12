@@ -24,7 +24,7 @@ void PREFIX(update_monitor_by_cond)(bool cond) {
 }
 
 void PREFIX(update_monitor_by_addr)(char* addr) {
-  PREFIX(update_hash)(addr, sizeof(char*));
+  PREFIX(update_hash)((char*)&addr, sizeof(char*));
 }
 
 void PREFIX(check_observations)() {
