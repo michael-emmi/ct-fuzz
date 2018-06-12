@@ -18,7 +18,8 @@
 using namespace llvm;
 
 typedef unsigned char idx_t;
-typedef std::vector<std::pair<AllocaInst*, AllocaInst*>> BoxesList;
+typedef std::pair<AllocaInst*, AllocaInst*> Boxes;
+typedef std::vector<Boxes> BoxesList;
 
 Function* getFunction(Module& M, std::string name) {
   Function* f = M.getFunction(name);
@@ -275,7 +276,7 @@ CallInst* execInputFunc(Module& M, Function* mainF, Function* srcF, const BoxesL
       auto valueP = IRB.CreateLoad(getElement(IRB, valuePP, idx));
       IRB.CreateCall(memcpyF, {IRB.CreateBitCast(mallocCI, getFirstArg(memcpyF)->getType()),
           IRB.CreateBitCast(valueP, getSecondArg(memcpyF)->getType()), len});
-      args.push_back(mallocCI);
+      args.push_back(IRB.CreateBitCast(mallocCI, T));
       ++len_i;
     }
     ++i;
@@ -297,7 +298,8 @@ Function* getSpecFunction(Module& M) {
 
 void CTFuzzInstrument::updateMonitors(Module& M) {
   for (auto& F : M.functions())
-    if (F.hasName() && !Naming::isCTFuzzFunc(F.getName()))
+    if (F.hasName() && !Naming::isCTFuzzFunc(F.getName())
+      && F.getName() != "main")
       this->visit(F);
 }
 
