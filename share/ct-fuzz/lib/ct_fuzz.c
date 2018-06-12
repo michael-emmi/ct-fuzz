@@ -20,15 +20,20 @@ void ASSUME(bool cond, char* msg) {
   }
 }
 
-size_t PREFIX(size_t_max)(size_t a, size_t b){
-  if (a > b)
+size_t PREFIX(size_t_max)(size_t a, size_t b) {
+  if (!a || !b)
+    // be demonic here: if either one has zero-sized memory,
+    // make both pointer arugments null.
+    return 0;
+  else if (a > b)
     return a;
   else
     return b;
 }
 
 void PREFIX(memcpy_wrapper)(char* dest, char* src, size_t num) {
-  memcpy(dest, src, num);
+  if (num)
+    memcpy(dest, src, num);
 }
 
 void PREFIX(handle_public_value)(char* src, size_t size) {
@@ -47,7 +52,10 @@ void PREFIX(handle_public_value)(char* src, size_t size) {
 }
 
 void PREFIX(stdin_read)(void* buf, size_t size) {
-  read(0, buf, size);
+  // not sure if the if condition is required.
+  // it's added just to make sure nothing bad happens.
+  if (size)
+    read(0, buf, size);
 }
 
 void PREFIX(initialize)(void) {
