@@ -13,6 +13,7 @@ class CTFuzzInstrument: public llvm::ModulePass, public llvm::InstVisitor<CTFuzz
     void visitLoadInst(llvm::LoadInst& li);
     void visitStoreInst(llvm::StoreInst& si);
     void visitBranchInst(llvm::BranchInst& bi);
+    void visitSwitchInst(llvm::SwitchInst& swi);
 
   private:
     llvm::Function* updateOnCondFunc;

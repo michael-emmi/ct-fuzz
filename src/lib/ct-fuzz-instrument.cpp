@@ -318,6 +318,10 @@ void CTFuzzInstrument::visitBranchInst(BranchInst& bi) {
     CallInst::Create(updateOnCondFunc, {bi.getCondition()}, "", &bi);
 }
 
+void CTFuzzInstrument::visitSwitchInst(SwitchInst& swi) {
+  llvm_unreachable("Not really expect to see switchinsts.");
+}
+
 bool CTFuzzInstrument::runOnModule(Module& M) {
   Function* srcF = getFunction(M, CTFuzzOptions::EntryPoint);
   Function* specF = getSpecFunction(M);

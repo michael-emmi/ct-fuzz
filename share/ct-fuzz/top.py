@@ -51,6 +51,7 @@ def run_pass(args):
     args.opt_out_file = args.input_file_name+'_post_inst.bc'
     cmd = ['opt', '-load']
     cmd += [ct_fuzz_dynamic_lib()]
+    cmd += ['-lowerswitch']
     cmd += ['-'+TOOL_NAME]
     cmd += ['-entry-point', args.entry_point]
     cmd += [args.opt_in_file, '-o', args.opt_out_file]
