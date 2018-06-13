@@ -17,8 +17,6 @@ class CTFuzzInstrument: public llvm::ModulePass, public llvm::InstVisitor<CTFuzz
   private:
     llvm::Function* updateOnCondFunc;
     llvm::Function* updateOnAddrFunc;
-    llvm::Function* debugPrintCondFunc;
-    llvm::Function* debugPrintAddrFunc;
     void updateMonitors(llvm::Module& M);
 };
 

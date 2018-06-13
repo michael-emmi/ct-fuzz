@@ -306,20 +306,16 @@ void CTFuzzInstrument::updateMonitors(Module& M) {
 void CTFuzzInstrument::visitLoadInst(LoadInst& li) {
   Value* V = new BitCastInst(li.getPointerOperand(), Type::getInt8PtrTy(li.getContext()), "", &li);
   CallInst::Create(updateOnAddrFunc, {V}, "", &li);
-  CallInst::Create(debugPrintAddrFunc, {V}, "", &li);
 }
 
 void CTFuzzInstrument::visitStoreInst(StoreInst& si) {
   Value* V = new BitCastInst(si.getPointerOperand(), Type::getInt8PtrTy(si.getContext()), "", &si);
   CallInst::Create(updateOnAddrFunc, {V}, "", &si);
-  CallInst::Create(debugPrintAddrFunc, {V}, "", &si);
 }
 
 void CTFuzzInstrument::visitBranchInst(BranchInst& bi) {
-  if (bi.isConditional()) {
+  if (bi.isConditional())
     CallInst::Create(updateOnCondFunc, {bi.getCondition()}, "", &bi);
-    CallInst::Create(debugPrintCondFunc, {bi.getCondition()}, "", &bi);
-  }
 }
 
 bool CTFuzzInstrument::runOnModule(Module& M) {
@@ -329,8 +325,6 @@ bool CTFuzzInstrument::runOnModule(Module& M) {
 
   updateOnCondFunc = getFunction(M, "__ct_fuzz_update_monitor_by_cond");
   updateOnAddrFunc = getFunction(M, "__ct_fuzz_update_monitor_by_addr");
-  debugPrintCondFunc = getFunction(M, "__ct_fuzz_dbg_print_cond");
-  debugPrintAddrFunc = getFunction(M, "__ct_fuzz_dbg_print_addr");
 
   BoxesList boxes;
   insertPublicInHandleFuncs(M, specF);

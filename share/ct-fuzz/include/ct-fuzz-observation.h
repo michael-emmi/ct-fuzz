@@ -20,10 +20,12 @@ void PREFIX(update_hash)(char* buf, size_t size) {
 }
 
 void PREFIX(update_monitor_by_cond)(bool cond) {
+  PREFIX(dbg_print_cond)(cond);
   PREFIX(update_hash)((char*)&cond, sizeof(bool));
 }
 
 void PREFIX(update_monitor_by_addr)(char* addr) {
+  PREFIX(dbg_print_addr)(addr);
   PREFIX(update_hash)((char*)&addr, sizeof(char*));
 }
 
