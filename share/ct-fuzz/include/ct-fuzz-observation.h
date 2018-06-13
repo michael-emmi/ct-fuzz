@@ -4,12 +4,16 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <signal.h>
+#include <string.h>
 #include "xxhash.h"
 #include "ct-fuzz-utils.h"
 #include "ct-fuzz-states.h"
 #include "ct-fuzz-debug.h"
 
-#define STOP_SIGNAL 42
+extern void PREFIX(update_hash)(char* buf, size_t size);
+extern void PREFIX(update_monitor_by_cond)(bool cond);
+extern void PREFIX(update_monitor_by_addr)(char* addr);
+//extern void PREFIX(check_observations)();
 
 void PREFIX(update_hash)(char* buf, size_t size) {
   HASH_T* old = &MONITORS[RUN_ID];
@@ -27,16 +31,6 @@ void PREFIX(update_monitor_by_cond)(bool cond) {
 void PREFIX(update_monitor_by_addr)(char* addr) {
   PREFIX(dbg_print_addr)(addr);
   PREFIX(update_hash)((char*)&addr, sizeof(char*));
-}
-
-void PREFIX(check_observations)() {
-  if (MONITORS[0] != MONITORS[1]) {
-    //int* p;
-    //DEBUG_PRINT_MSG("oops");
-    //*p = 42;
-    DEBUG_PRINT_MSG("oops");
-    raise(STOP_SIGNAL);
-  }
 }
 
 #endif

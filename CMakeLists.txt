@@ -3,16 +3,28 @@ cmake_minimum_required(VERSION 3.1)
 find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 
-add_library(CTFuzzInstrument MODULE
-  src/lib/ct-fuzz-instrument.cpp
+add_library(CTFuzzInstrumentSelf MODULE
+  src/lib/ct-fuzz-instrument-self.cpp
   src/lib/ct-fuzz-naming.cpp
   src/lib/ct-fuzz-options.cpp
+  src/lib/ct-fuzz-instrument-utils.cpp
+)
+
+add_library(CTFuzzInstrumentSrc MODULE
+  src/lib/ct-fuzz-instrument-src.cpp
+  src/lib/ct-fuzz-instrument-utils.cpp
+  src/lib/ct-fuzz-naming.cpp
 )
 
 add_library(xxHash MODULE
   xxHash/xxhash.c)
 
-target_include_directories(CTFuzzInstrument PRIVATE
+target_include_directories(CTFuzzInstrumentSrc PUBLIC
+  ${LLVM_INCLUDE_DIRS}
+  src/include
+)
+
+target_include_directories(CTFuzzInstrumentSelf PUBLIC
   ${LLVM_INCLUDE_DIRS}
   src/include
 )
@@ -37,6 +49,8 @@ execute_process(
   OUTPUT_VARIABLE CMAKE_CXX_FLAGS
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
+
+string(REPLACE "-fvisibility-inlines-hidden" "" LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
 
 execute_process(
   COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs
@@ -66,14 +80,20 @@ execute_process(
 #set_target_properties(ExtractPass PROPERTIES
 #    COMPILE_FLAGS "-fno-rtti"
 #)
-set_target_properties(CTFuzzInstrument PROPERTIES
+set_target_properties(CTFuzzInstrumentSrc PROPERTIES
+    COMPILE_FLAGS "-fno-rtti"
+)
+set_target_properties(CTFuzzInstrumentSelf PROPERTIES
     COMPILE_FLAGS "-fno-rtti"
 )
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)
-    set_target_properties(CTFuzzInstrument PROPERTIES
+    set_target_properties(CTFuzzInstrumentSrc PROPERTIES
+        LINK_FLAGS "-undefined dynamic_lookup"
+    )
+    set_target_properties(CTFuzzInstrumentSelf PROPERTIES
         LINK_FLAGS "-undefined dynamic_lookup"
     )
 endif(APPLE)

@@ -6,9 +6,10 @@
 #include <sys/wait.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
-#include "ct-fuzz-observation.h"
+//#include "ct-fuzz-observation.h"
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
+#define STOP_SIGNAL 42
 
 #define ASSUME PREFIX(assume)
 
@@ -20,11 +21,23 @@ void ASSUME(bool cond, char* msg) {
   }
 }
 
+void* PREFIX(malloc_wrapper)(size_t size) {
+  if (size > 1000) {
+    printf("what the hell, dude!\n");
+    exit(1);
+  } else
+    return malloc(size);
+}
+
 size_t PREFIX(size_t_max)(size_t a, size_t b) {
-  if (!a || !b)
+  printf("size 1 is: %u\n", a);
+  printf("size 2 is: %u\n", b);
+  if (!a || !b) {
     // be demonic here: if either one has zero-sized memory,
     // make both pointer arugments null.
+    printf("size total is: %u\n", 0);
     return 0;
+  }
   else if (a > b)
     return a;
   else
@@ -32,7 +45,7 @@ size_t PREFIX(size_t_max)(size_t a, size_t b) {
 }
 
 void PREFIX(memcpy_wrapper)(char* dest, char* src, size_t num) {
-  if (num)
+  if (dest && src)
     memcpy(dest, src, num);
 }
 
@@ -43,8 +56,8 @@ void PREFIX(handle_public_value)(char* src, size_t size) {
 
   if (!RUN_ID) {
     char* dest = (char*)malloc(size);
-    PREFIX(public_values)[PREFIX(public_value_update_idx)++] = dest;
-    PREFIX(memcpy_wrapper)(dest, src, size);
+      PREFIX(public_values)[PREFIX(public_value_update_idx)++] = dest;
+      PREFIX(memcpy_wrapper)(dest, src, size);
   } else {
     char* v = PREFIX(public_values)[PREFIX(public_value_check_idx)++];
     ASSUME(memcmp(src, v, size) == 0, "Public values mismatch.");
@@ -70,6 +83,16 @@ void PREFIX(initialize)(void) {
 void PREFIX(exec)(IDX_T);
 void PREFIX(spec)(IDX_T);
 void PREFIX(read_inputs)(void);
+
+void PREFIX(check_observations)() {
+  if (MONITORS[0] != MONITORS[1]) {
+    //int* p;
+    //DEBUG_PRINT_MSG("oops");
+    //*p = 42;
+    DEBUG_PRINT_MSG("oops");
+    raise(STOP_SIGNAL);
+  }
+}
 
 void PREFIX(main)(void) {
   PREFIX(initialize)();

@@ -1,4 +1,3 @@
-#include "ct-fuzz-instrument.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -8,8 +7,10 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "ct-fuzz-instrument-self.h"
 #include "ct-fuzz-naming.h"
 #include "ct-fuzz-options.h"
+#include "ct-fuzz-instrument-utils.h"
 
 #include <utility>
 #include <vector>
@@ -21,19 +22,20 @@ typedef unsigned char idx_t;
 typedef std::pair<AllocaInst*, AllocaInst*> Boxes;
 typedef std::vector<Boxes> BoxesList;
 
-Function* getFunction(Module& M, std::string name) {
-  Function* f = M.getFunction(name);
-  assert(f && "Unable to get function in this module.");
-  return f;
+CallInst* getCallToReadInputsFunc(Function* mainF) {
+  return CTFuzzInstrumentUtils::getCallToFuncOnce(mainF, "__ct_fuzz_read_inputs");
 }
 
-inline Value* getSecondArg(Function* F) {
-  auto I = F->arg_begin();
-  return ++I;
+CallInst* getCallToSpecFunc(Function* mainF) {
+  return CTFuzzInstrumentUtils::getCallToFuncOnce(mainF, "__ct_fuzz_spec");
 }
 
-inline Value* getFirstArg(Function* F) {
-  return F->arg_begin();
+CallInst* getCallToExecFunc(Function* mainF) {
+  return CTFuzzInstrumentUtils::getCallToFuncOnce(mainF, "__ct_fuzz_exec");
+}
+
+std::vector<CallInst*> getPublicInCalls(Function* F) {
+  return CTFuzzInstrumentUtils::getCallFromFunc(F, Naming::PUBLIC_IN_FUNC);
 }
 
 Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
@@ -42,7 +44,7 @@ Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
   Type* T = CI->getArgOperand(0)->getType();
   std::vector<Type*> ts;
 
-  Function* CF = getFunction(*M, Naming::PUBLIC_IN_HANDLE_FUNC);
+  Function* CF = CTFuzzInstrumentUtils::getFunction(*M, Naming::PUBLIC_IN_HANDLE_FUNC);
 
   for(unsigned i = 0; i < CI->getNumArgOperands(); ++i)
     ts.push_back(CI->getArgOperand(i)->getType());
@@ -54,8 +56,6 @@ Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
   BasicBlock* B = BasicBlock::Create(M->getContext(), "", newF);
   IRBuilder<> IRB(B);
 
-  // create a box for this value and fill it in the box
-  //Value* P = IRB.CreateAlloca(T);
   Value* P = nullptr;
   Value* S = nullptr;
   assert(!T->isAggregateType() && "Doesn't support aggregate types");
@@ -64,60 +64,19 @@ Function* buildPublicInHandleFunc(Module* M, CallInst* CI) {
     P = IRB.CreateAlloca(T);
     IRB.CreateStore(&*newF->arg_begin(), P);
     uint64_t size = DL.getTypeSizeInBits(T) >> 3;
-    S = ConstantInt::get(getSecondArg(CF)->getType(), size);
+    S = ConstantInt::get(CTFuzzInstrumentUtils::getSecondArg(CF)->getType(), size);
     P = IRB.CreateBitCast(P, CF->arg_begin()->getType());
   } else {
-    P = newF->arg_begin();
-    S = IRB.CreateZExtOrBitCast(getSecondArg(newF), getSecondArg(CF)->getType());
+    P = CTFuzzInstrumentUtils::getFirstArg(newF);
+    S = IRB.CreateZExtOrBitCast(CTFuzzInstrumentUtils::getSecondArg(newF), CTFuzzInstrumentUtils::getSecondArg(CF)->getType());
   }
 
   IRB.CreateCall(CF, {P, S});
 
-  // add return
   IRB.CreateRetVoid();
 
   counter++;
   return newF;
-}
-
-std::vector<CallInst*> getCallFromFunc(Function* F, std::string FN) {
-  std::vector<CallInst*> cis;
-  for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-    if (CallInst* ci = dyn_cast<CallInst>(&*I)) {
-      Function* f = ci->getCalledFunction();
-      if (!f)
-        f = dyn_cast<Function>(ci->getCalledValue()->stripPointerCasts());
-      if (f && f->hasName()) {
-        if (f->getName().str() == FN) {
-          assert((ci->getNumArgOperands() == 1 || ci->getNumArgOperands() == 2) && "Assume only one or two arguments to public_in calls");
-          cis.push_back(ci);
-        }
-      }
-    }
-  }
-  return cis;
-}
-
-std::vector<CallInst*> getPublicInCalls(Function* F) {
-  return getCallFromFunc(F, Naming::PUBLIC_IN_FUNC);
-}
-
-CallInst* getCallToFuncOnce(Function* mainF, std::string FN) {
-  auto ret = getCallFromFunc(mainF, FN);
-  assert(ret.size() == 1 && "Should see just one call site.");
-  return ret[0];
-}
-
-CallInst* getCallToReadInputsFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, "__ct_fuzz_read_inputs");
-}
-
-CallInst* getCallToSpecFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, "__ct_fuzz_spec");
-}
-
-CallInst* getCallToExecFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, "__ct_fuzz_exec");
 }
 
 void insertPublicInHandleFuncs(Module& M, Function* specF) {
@@ -165,16 +124,15 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, idx_t idx, Type* T = 
   return IRB.CreateGEP(AI, {createIdx(AI, 0), createIdx(AI, idx)});
 }
 
-
 inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx, Type* T = nullptr) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
 CallInst* readInputs(Module& M, Function* mainF, Function* srcF, BoxesList& boxes) {
   CallInst* TCI = getCallToReadInputsFunc(mainF);
-  Function* stdinRF = getFunction(M, "__ct_fuzz_stdin_read");
-  Function* mallocF = getFunction(M, "malloc");
-  Type* sizeT = getSecondArg(stdinRF)->getType();
+  Function* stdinRF = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_stdin_read");
+  Function* mallocF = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_malloc_wrapper");
+  Type* sizeT = CTFuzzInstrumentUtils::getSecondArg(stdinRF)->getType();
 
   IRBuilder<> IRB(TCI);
 
@@ -241,8 +199,8 @@ CallInst* checkInputs(Module& M, Function* mainF, Function* specF, const BoxesLi
 // NOTE: we're in a forked process
 CallInst* execInputFunc(Module& M, Function* mainF, Function* srcF, const BoxesList& boxes) {
   CallInst* TCI = getCallToExecFunc(mainF);
-  Function* maxF = getFunction(M, "__ct_fuzz_size_t_max");
-  Function* memcpyF = getFunction(M, "__ct_fuzz_memcpy_wrapper");
+  Function* maxF = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_size_t_max");
+  Function* memcpyF = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_memcpy_wrapper");
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
@@ -271,11 +229,11 @@ CallInst* execInputFunc(Module& M, Function* mainF, Function* srcF, const BoxesL
       auto maxLen = lens[len_i];
       // call malloc
       // TODO: initialize this chunk of memory
-      auto mallocCI = IRB.CreateCall(getFunction(M, "malloc"), {maxLen});
+      auto mallocCI = IRB.CreateCall(CTFuzzInstrumentUtils::getFunction(M, "malloc"), {maxLen});
       auto len = IRB.CreateLoad(getElement(IRB, lenPP, idx));
       auto valueP = IRB.CreateLoad(getElement(IRB, valuePP, idx));
-      IRB.CreateCall(memcpyF, {IRB.CreateBitCast(mallocCI, getFirstArg(memcpyF)->getType()),
-          IRB.CreateBitCast(valueP, getSecondArg(memcpyF)->getType()), len});
+      IRB.CreateCall(memcpyF, {IRB.CreateBitCast(mallocCI, CTFuzzInstrumentUtils::getFirstArg(memcpyF)->getType()),
+          IRB.CreateBitCast(valueP, CTFuzzInstrumentUtils::getSecondArg(memcpyF)->getType()), len});
       args.push_back(IRB.CreateBitCast(mallocCI, T));
       ++len_i;
     }
@@ -296,47 +254,16 @@ Function* getSpecFunction(Module& M) {
   llvm_unreachable("Unable to find spec function.");
 }
 
-void CTFuzzInstrument::updateMonitors(Module& M) {
-  for (auto& F : M.functions())
-    if (F.hasName() && !Naming::isCTFuzzFunc(F.getName())
-      && F.getName() != "main")
-      this->visit(F);
-}
-
-void CTFuzzInstrument::visitLoadInst(LoadInst& li) {
-  Value* V = new BitCastInst(li.getPointerOperand(), Type::getInt8PtrTy(li.getContext()), "", &li);
-  CallInst::Create(updateOnAddrFunc, {V}, "", &li);
-}
-
-void CTFuzzInstrument::visitStoreInst(StoreInst& si) {
-  Value* V = new BitCastInst(si.getPointerOperand(), Type::getInt8PtrTy(si.getContext()), "", &si);
-  CallInst::Create(updateOnAddrFunc, {V}, "", &si);
-}
-
-void CTFuzzInstrument::visitBranchInst(BranchInst& bi) {
-  if (bi.isConditional())
-    CallInst::Create(updateOnCondFunc, {bi.getCondition()}, "", &bi);
-}
-
-void CTFuzzInstrument::visitSwitchInst(SwitchInst& swi) {
-  llvm_unreachable("Not really expect to see switchinsts.");
-}
-
-bool CTFuzzInstrument::runOnModule(Module& M) {
-  Function* srcF = getFunction(M, CTFuzzOptions::EntryPoint);
+bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
+  Function* srcF = CTFuzzInstrumentUtils::getFunction(M, CTFuzzOptions::EntryPoint);
   Function* specF = getSpecFunction(M);
-  Function* mainF = getFunction(M, "__ct_fuzz_main");
-
-  updateOnCondFunc = getFunction(M, "__ct_fuzz_update_monitor_by_cond");
-  updateOnAddrFunc = getFunction(M, "__ct_fuzz_update_monitor_by_addr");
+  Function* mainF = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_main");
 
   BoxesList boxes;
   insertPublicInHandleFuncs(M, specF);
   auto I1 = readInputs(M, mainF, srcF, boxes);
   auto I2 = checkInputs(M, mainF, specF, boxes);
   auto I3 = execInputFunc(M, mainF, srcF, boxes);
-
-  updateMonitors(M);
 
   I1->eraseFromParent();
   I2->eraseFromParent();
@@ -346,8 +273,8 @@ bool CTFuzzInstrument::runOnModule(Module& M) {
 }
 
 // Pass ID variable
-char CTFuzzInstrument::ID = 0;
+char CTFuzzInstrumentSelf::ID = 0;
 
 // Register the pass
-static RegisterPass<CTFuzzInstrument>
-X("ct-fuzz", "Instrumentations for constant time fuzzer");
+static RegisterPass<CTFuzzInstrumentSelf>
+X("ct-fuzz-instrument-self", "Instrumentations for constant time fuzzer");
