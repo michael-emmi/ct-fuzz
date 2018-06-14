@@ -1,0 +1,9 @@
+*.bc
+*.ll
+*.o
+*.so
+
+afl-2.52b/*
+build/*
+
+xxHash
