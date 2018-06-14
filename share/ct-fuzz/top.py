@@ -11,8 +11,6 @@ def arguments():
     parser.add_argument('input_file', metavar='FILE', default=None, type=str, help='input file to fuzz')
     parser.add_argument('-d', '--debug', action="store_true", default=False, help='enable debugging output')
     parser.add_argument('--entry-point', metavar='PROC', default=None, type=str, help='entry point function to start with')
-    #parser.add_argument('--clang-options', metavar='OPTIONS', default='', type=str, help='compiler options')
-    #parser.add_argument('--compiler-options', metavar='OPTIONS', default='', type=str, help='linker options')
     parser.add_argument('--opt-level', metavar='NUM', default=2, type=int, help='compiler optimization level')
 
     args = parser.parse_args()
@@ -30,34 +28,34 @@ def xxHash_include_dir():
 def ct_fuzz_lib_dir():
     return os.path.join(ct_fuzz_root(), 'share', TOOL_NAME, 'lib')
 
-def ct_fuzz_src_dynamic_lib():
-    return os.path.join(ct_fuzz_root(), 'build', 'libCTFuzzInstrumentSrc.so')
+#def ct_fuzz_src_dynamic_lib():
+#    return os.path.join(ct_fuzz_root(), 'build', 'libCTFuzzInstrumentSrc.so')
 
 def ct_fuzz_self_dynamic_lib():
     return os.path.join(ct_fuzz_root(), 'build', 'libCTFuzzInstrumentSelf.so')
 
-def afl_pass_dynamic_lib():
-    return os.path.join(ct_fuzz_root(), 'afl-2.52b', 'afl-llvm-pass.so')
-
-def afl_rt_obj():
-    return os.path.join(ct_fuzz_root(), 'afl-2.52b', 'afl-llvm-rt-64.o')
+def afl_clang_fast_path():
+    return os.path.join(ct_fuzz_root(), 'afl-2.52b', 'afl-clang-fast')
+#def afl_pass_dynamic_lib():
+#    return os.path.join(ct_fuzz_root(), 'afl-2.52b', 'afl-llvm-pass.so')
+#
+#def afl_rt_obj():
+#    return os.path.join(ct_fuzz_root(), 'afl-2.52b', 'afl-llvm-rt-64.o')
 
 def xxHash_dir():
     return os.path.join(ct_fuzz_root(), 'build')
 
 def compile_c_file(args, c_file_name, plugins=''):
-    cmd = ['clang', '-O'+str(args.opt_level), '-c']
+    cmd = [afl_clang_fast_path(), '-O'+str(args.opt_level), '-c']
     cmd += plugins.split()
     cmd += [c_file_name]
     cmd += ['-emit-llvm']
     cmd += ['-I'+ct_fuzz_include_dir()]
     cmd += ['-I'+xxHash_include_dir()]
-    #cmd += args.clang_options.split()
     try_command(cmd);
 
 def build_libs(args):
     lib_file_paths = map(lambda l: os.path.join(ct_fuzz_lib_dir(), l), os.listdir(ct_fuzz_lib_dir()))
-    #lib_file_path = os.path.join(ct_fuzz_lib_dir(), 'ct_fuzz.c')
     map(lambda l: compile_c_file(args, l), lib_file_paths)
     return map(lambda l: replace_suffix(os.path.basename(l)), lib_file_paths)
 
@@ -71,7 +69,6 @@ def run_pass(args):
     args.opt_out_file = args.input_file_name+'_post_inst.bc'
     cmd = ['opt', '-load']
     cmd += [ct_fuzz_self_dynamic_lib()]
-    #cmd += ['-lowerswitch']
     cmd += ['-'+TOOL_NAME+'-instrument-self']
     cmd += ['-entry-point', args.entry_point]
     cmd += [args.opt_in_file, '-o', args.opt_out_file]
@@ -80,16 +77,14 @@ def run_pass(args):
 def compile_bc_to_exec(args):
     llc_cmd = ['llc', '-filetype=obj', args.opt_out_file]
     try_command(llc_cmd)
-    clang_cmd = ['clang', args.input_file_name+'_post_inst.o', afl_rt_obj()]
+    clang_cmd = [afl_clang_fast_path(), args.input_file_name+'_post_inst.o']
     clang_cmd += ['-L`jemalloc-config --libdir`', '-Wl,-rpath,`jemalloc-config --libdir`', '-ljemalloc', '`jemalloc-config --libs`']
     clang_cmd = ' '.join(clang_cmd)
-    #clang_cmd += ' ' + args.compiler_options
     clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(xxHash_dir())
     try_command(clang_cmd, shell=True)
 
 def make_test_binary(args):
-    build_xclang_args = lambda p : '-Xclang -load -Xclang '+p+' '
-    compile_c_file(args, args.input_file, build_xclang_args(ct_fuzz_src_dynamic_lib())+build_xclang_args(afl_pass_dynamic_lib()))
+    compile_c_file(args, args.input_file)
     libs = build_libs(args)
     link_bc_files(args, libs)
     run_pass(args)
