@@ -25,3 +25,8 @@ SPEC(foo)(char* a) {
   __ct_fuzz_public_in(a, strlen(a));
 }
 ```
+
+
+Function `__ct_fuzz_array_len` returns the number of elements a pointer argument points to. A pointer to a single element should have length 0.
+
+Macro `CT_FUZZ_ASSUME` is used to place assumptions. If the condition argument doesn't hold, the execution stops.
