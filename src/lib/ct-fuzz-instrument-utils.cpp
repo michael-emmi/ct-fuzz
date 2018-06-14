@@ -25,12 +25,8 @@ std::vector<CallInst*> CTFuzzInstrumentUtils::getCallFromFunc(Function* F, std::
       Function* f = ci->getCalledFunction();
       if (!f)
         f = dyn_cast<Function>(ci->getCalledValue()->stripPointerCasts());
-      if (f && f->hasName()) {
-        if (f->getName().str() == FN) {
-          assert((ci->getNumArgOperands() == 1 || ci->getNumArgOperands() == 2) && "Assume only one or two arguments to public_in calls");
+      if (f && f->hasName() && f->getName().str() == FN)
           cis.push_back(ci);
-        }
-      }
     }
   }
   return cis;

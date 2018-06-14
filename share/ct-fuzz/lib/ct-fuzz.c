@@ -6,10 +6,12 @@
 #include <sys/wait.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
-//#include "ct-fuzz-observation.h"
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
 #define STOP_SIGNAL 42
+#define MALLOC_MAXIMUM_SIZE 4096
+#define ASSUME_VIOLATION 240
+#define MEMORY_VIOLATION 420
 
 #define ASSUME PREFIX(assume)
 
@@ -17,25 +19,24 @@ void ASSUME(bool cond, char* msg) {
   if (!cond) {
     if (msg)
       printf("%s\n", msg);
-    exit(1);
+    exit(ASSUME_VIOLATION);
   }
 }
 
 void* PREFIX(malloc_wrapper)(size_t size) {
-  if (size > 1000) {
-    printf("what the hell, dude!\n");
-    exit(1);
+  if (size > MALLOC_MAXIMUM_SIZE) {
+    printf("dude, what the hell!\n");
+    exit(MEMORY_VIOLATION);
   } else
     return malloc(size);
 }
 
 size_t PREFIX(size_t_max)(size_t a, size_t b) {
-  printf("size 1 is: %u\n", a);
-  printf("size 2 is: %u\n", b);
+  //printf("size 1 is: %u\n", a);
+  //printf("size 2 is: %u\n", b);
   if (!a || !b) {
     // be demonic here: if either one has zero-sized memory,
     // make both pointer arugments null.
-    printf("size total is: %u\n", 0);
     return 0;
   }
   else if (a > b)
@@ -45,8 +46,7 @@ size_t PREFIX(size_t_max)(size_t a, size_t b) {
 }
 
 void PREFIX(memcpy_wrapper)(char* dest, char* src, size_t num) {
-  if (dest && src)
-    memcpy(dest, src, num);
+  memcpy(dest, src, num);
 }
 
 void PREFIX(handle_public_value)(char* src, size_t size) {
@@ -55,9 +55,9 @@ void PREFIX(handle_public_value)(char* src, size_t size) {
   static unsigned PREFIX(public_value_check_idx) = 0;
 
   if (!RUN_ID) {
-    char* dest = (char*)malloc(size);
-      PREFIX(public_values)[PREFIX(public_value_update_idx)++] = dest;
-      PREFIX(memcpy_wrapper)(dest, src, size);
+    char* dest = (char*)PREFIX(malloc_wrapper)(size);
+    PREFIX(public_values)[PREFIX(public_value_update_idx)++] = dest;
+    PREFIX(memcpy_wrapper)(dest, src, size);
   } else {
     char* v = PREFIX(public_values)[PREFIX(public_value_check_idx)++];
     ASSUME(memcmp(src, v, size) == 0, "Public values mismatch.");

@@ -7,6 +7,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "ct-fuzz-instrument-self.h"
 #include "ct-fuzz-naming.h"
 #include "ct-fuzz-options.h"
@@ -86,7 +87,6 @@ void insertPublicInHandleFuncs(Module& M, Function* specF) {
     auto F = buildPublicInHandleFunc(&M, ci);
     bindings[ci] = F;
   }
-
 
   // first replace public_in calls with instrumented ones
   for (auto& binding: bindings) {
@@ -176,6 +176,49 @@ CallInst* readInputs(Module& M, Function* mainF, Function* srcF, BoxesList& boxe
   return TCI;
 }
 
+Function* buildNewSpecFunc(Module& M, Function* specF) {
+  std::vector<Type*> newTs;
+  std::map<Value*, Value*> ptrArgMap;
+  ValueToValueMapTy VMap;
+  // FIXME: non-portable here
+  Type* sizeT = IntegerType::get(M.getContext(), 64);
+  SmallVector<ReturnInst*, 8> Returns;
+
+  for (auto& arg : specF->args()) {
+    Type* T = arg.getType();
+    newTs.push_back(T);
+    if (T->isPointerTy())
+      newTs.push_back(sizeT);
+  }
+  
+  FunctionType* NT = FunctionType::get(specF->getReturnType(), newTs, false);
+  Function* NewF = Function::Create(NT, specF->getLinkage(), specF->getName()+"_new", &M);
+
+  Function::arg_iterator DestA = NewF->arg_begin();
+  for (auto &A : specF->args()) {
+    VMap[&A] = &*DestA;
+    if (A.getType()->isPointerTy()) {
+      auto temp = DestA;
+      ptrArgMap[&*temp] = &*++DestA;
+    }
+    ++DestA;
+  }
+  CloneFunctionInto(NewF, specF, VMap, false, Returns);
+
+  // search array length function calls and replace them with length arg
+  auto CIS = CTFuzzInstrumentUtils::getCallFromFunc(NewF, "__ct_fuzz_array_len");
+  for (auto &CI : CIS) {
+    IRBuilder<> IRB(CI);
+    Value* P = CI->getArgOperand(0)->stripPointerCasts();
+    Type* ET = cast<PointerType>(P->getType())->getElementType();
+    CI->replaceAllUsesWith(
+      IRB.CreateUDiv(ptrArgMap[P], ConstantInt::get(sizeT, M.getDataLayout().getTypeStoreSize(ET))));
+  }
+  for (auto &CI : CIS)
+    CI->eraseFromParent();
+  return NewF;
+}
+
 CallInst* checkInputs(Module& M, Function* mainF, Function* specF, const BoxesList& boxes) {
   CallInst* TCI = getCallToSpecFunc(mainF);
   IRBuilder<> IRB(TCI);
@@ -186,13 +229,15 @@ CallInst* checkInputs(Module& M, Function* mainF, Function* specF, const BoxesLi
 
   for (auto& arg : specF->args()) {
     Type* T = arg.getType();
-    auto P = boxes[i].first;
-    args.push_back(IRB.CreateLoad(getElement(IRB, P, idx, T)));
+    args.push_back(IRB.CreateLoad(getElement(IRB, boxes[i].first, idx, T)));
+    if (T->isPointerTy())
+      args.push_back(IRB.CreateLoad(getElement(IRB, boxes[i].second, idx)));
     ++i;
   }
 
-  IRB.CreateCall(specF, args);
+  IRB.CreateCall(buildNewSpecFunc(M, specF), args);
 
+  specF->eraseFromParent();
   return TCI;
 }
 

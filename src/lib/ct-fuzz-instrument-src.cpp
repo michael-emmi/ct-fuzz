@@ -21,21 +21,22 @@
 using namespace llvm;
 
 void CTFuzzInstrumentSrc::visitLoadInst(LoadInst& li) {
-  Value* V = new BitCastInst(li.getPointerOperand(), Type::getInt8PtrTy(li.getContext()), "", &li);
-  auto CI = CallInst::Create(updateOnAddrFunc, {V}, "", &li);
-  CI->setDebugLoc(li.getDebugLoc());
+  IRBuilder<> IRB(&li);
+  auto CI = IRB.CreateCall(updateOnAddrFunc,
+    {IRB.CreateBitCast(li.getPointerOperand(), Type::getInt8PtrTy(li.getContext()))});
+  CI->setDebugLoc(li.getParent()->begin()->getDebugLoc());
 }
 
 void CTFuzzInstrumentSrc::visitStoreInst(StoreInst& si) {
-  Value* V = new BitCastInst(si.getPointerOperand(), Type::getInt8PtrTy(si.getContext()), "", &si);
-  auto CI = CallInst::Create(updateOnAddrFunc, {V}, "", &si);
-  CI->setDebugLoc(si.getDebugLoc());
+  IRBuilder<> IRB(&si);
+  auto CI = IRB.CreateCall(updateOnAddrFunc,
+    {IRB.CreateBitCast(si.getPointerOperand(), Type::getInt8PtrTy(si.getContext()))});
+  CI->setDebugLoc(si.getParent()->begin()->getDebugLoc());
 }
 
 void CTFuzzInstrumentSrc::visitBranchInst(BranchInst& bi) {
   if (bi.isConditional()) {
     IRBuilder<> IRB(&bi);
-    //auto CI = CallInst::Create(updateOnCondFunc, {bi.getCondition()}, "", &bi);
     IRB.CreateCall(updateOnCondFunc, {bi.getCondition()});
   }
 }
