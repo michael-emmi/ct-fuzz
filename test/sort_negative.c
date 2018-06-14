@@ -1,4 +1,5 @@
 #include "ct-fuzz.h"
+#include <stdio.h>
 
 void sort2(int *out2, int *in2) {
   int a, b;
@@ -24,7 +25,10 @@ void sort3(int *out3, int *in3) {
 }
 
 CT_FUZZ_SPEC(sort3_wrapper)(int* out, int* in) {
-
+  size_t out_len = __ct_fuzz_array_len(out);
+  size_t in_len = __ct_fuzz_array_len(in);
+  CT_FUZZ_ASSUME(out_len >=3 && out_len <= 10);
+  CT_FUZZ_ASSUME(in_len >=3 && in_len <= 10);
 }
 
 int sort3_wrapper(int *out, int *in) {
