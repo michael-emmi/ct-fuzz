@@ -192,12 +192,25 @@ Function* CTFuzzInstrumentSelf::buildNewSpecFunc(Module& M, Function* specF) {
   }
   CloneFunctionInto(NewF, specF, VMap, false, Returns);
 
+  auto findMapping = [&ptrArgMap](Value* ptrArg) -> Value* {
+    if (auto li = dyn_cast<LoadInst>(ptrArg)) {
+      if (auto ai = dyn_cast<AllocaInst>(li->getPointerOperand()->stripPointerCasts())) {
+        for (auto u : ai->users()) {
+          if (auto si = dyn_cast<StoreInst>(u))
+            return ptrArgMap[si->getValueOperand()];
+        }
+        llvm_unreachable("weird.");
+      }
+    }
+      return ptrArgMap[ptrArg];
+  };
   // search array length function calls and replace them with length arg
   auto CIS = Utils::getCallFromFunc(NewF, "__ct_fuzz_array_len");
   for (auto &CI : CIS) {
     IRBuilder<> IRB(CI);
     Value* P = CI->getArgOperand(0)->stripPointerCasts();
-    CI->replaceAllUsesWith(ptrArgMap[P]);
+    Value* V = findMapping(P);
+    CI->replaceAllUsesWith(V);
   }
   for (auto &CI : CIS)
     CI->eraseFromParent();
