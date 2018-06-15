@@ -55,7 +55,8 @@ def compile_c_file(args, c_file_name, plugins=''):
     try_command(cmd);
 
 def build_libs(args):
-    lib_file_paths = map(lambda l: os.path.join(ct_fuzz_lib_dir(), l), os.listdir(ct_fuzz_lib_dir()))
+    lib_file_paths = map(lambda l: os.path.join(ct_fuzz_lib_dir(), l), filter(
+        lambda f: os.path.splitext(f)[1] == '.c', os.listdir(ct_fuzz_lib_dir())))
     map(lambda l: compile_c_file(args, l), lib_file_paths)
     return map(lambda l: replace_suffix(os.path.basename(l)), lib_file_paths)
 
