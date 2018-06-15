@@ -4,6 +4,10 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Constants.h"
 
 class CTFuzzInstrumentUtils  {
   public:
@@ -12,6 +16,9 @@ class CTFuzzInstrumentUtils  {
     static llvm::Value* getFirstArg(llvm::Function* F);
     static std::vector<llvm::CallInst*> getCallFromFunc(llvm::Function* F, std::string FN);
     static llvm::CallInst* getCallToFuncOnce(llvm::Function* F, std::string FN);
+    static llvm::IntegerType* getLenT(llvm::LLVMContext& C);
+    static llvm::Constant* getTypeSizeInSizeT(llvm::DataLayout& DL, llvm::Type* T, llvm::Type* sizeT);
+    static llvm::Value* getByteSizeInSizeT(llvm::IRBuilder<>& IRB, llvm::DataLayout& DL, llvm::Value* len, llvm::Type* elemT, llvm::Type* sizeT);
 };
 
 #endif

@@ -37,3 +37,15 @@ CallInst* CTFuzzInstrumentUtils::getCallToFuncOnce(Function* F, std::string FN) 
   assert(ret.size() == 1 && "Should see just one call site.");
   return ret[0];
 }
+
+IntegerType* CTFuzzInstrumentUtils::getLenT(LLVMContext& C) {
+  return IntegerType::get(C, 16);
+}
+
+Constant* CTFuzzInstrumentUtils::getTypeSizeInSizeT(DataLayout& DL, Type* T, Type* sizeT) {
+  return ConstantInt::get(sizeT, DL.getTypeStoreSize(T));
+}
+
+Value* CTFuzzInstrumentUtils::getByteSizeInSizeT(IRBuilder<>& IRB, DataLayout& DL, Value* len, Type* elemT, Type* sizeT) {
+  return IRB.CreateMul(IRB.CreateZExt(len, sizeT), getTypeSizeInSizeT(DL, elemT, sizeT));
+}

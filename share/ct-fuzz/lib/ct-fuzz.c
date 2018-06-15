@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <sys/wait.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
@@ -15,6 +16,8 @@
 
 #define ASSUME PREFIX(assume)
 
+typedef uint16_t len_t;
+
 void ASSUME(bool cond, char* msg) {
   if (!cond) {
     if (msg)
@@ -24,14 +27,14 @@ void ASSUME(bool cond, char* msg) {
 }
 
 void* PREFIX(malloc_wrapper)(size_t size) {
-  if (size > MALLOC_MAXIMUM_SIZE) {
-    printf("dude, what the hell!\n");
-    exit(MEMORY_VIOLATION);
-  } else
-    return malloc(size);
+  //if (size > MALLOC_MAXIMUM_SIZE) {
+  //  printf("dude, what the hell!\n");
+  //  exit(MEMORY_VIOLATION);
+  //} else
+  return malloc(size);
 }
 
-size_t PREFIX(size_t_max)(size_t a, size_t b) {
+len_t PREFIX(max_len)(len_t a, len_t b) {
   //printf("size 1 is: %u\n", a);
   //printf("size 2 is: %u\n", b);
   if (!a || !b) {
