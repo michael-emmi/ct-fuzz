@@ -32,7 +32,7 @@ def try_command(cmd, cwd=None, console=False, timeout=None, shell=False):
   timer = None
   try:
     if args.debug:
-      print "Running %s" % cmd if shell else " ".join(cmd)
+      print cmd if shell else " ".join(cmd)
 
     proc = subprocess.Popen(cmd, cwd=cwd, preexec_fn=os.setsid,
       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell)

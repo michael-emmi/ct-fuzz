@@ -12,6 +12,7 @@ def arguments():
     parser.add_argument('-d', '--debug', action="store_true", default=False, help='enable debugging output')
     parser.add_argument('--entry-point', metavar='PROC', default=None, type=str, help='entry point function to start with')
     parser.add_argument('--opt-level', metavar='NUM', default=2, type=int, help='compiler optimization level')
+    parser.add_argument('--compiler-options', metavar='OPTIONS', default='', type=str, help='compiler options')
 
     args = parser.parse_args()
     return args
@@ -52,6 +53,7 @@ def compile_c_file(args, c_file_name, plugins=''):
     cmd += ['-emit-llvm']
     cmd += ['-I'+ct_fuzz_include_dir()]
     cmd += ['-I'+xxHash_include_dir()]
+    cmd += args.compiler_options.split()
     try_command(cmd);
 
 def build_libs(args):
@@ -82,6 +84,7 @@ def compile_bc_to_exec(args):
     clang_cmd += ['-L`jemalloc-config --libdir`', '-Wl,-rpath,`jemalloc-config --libdir`', '-ljemalloc', '`jemalloc-config --libs`']
     clang_cmd = ' '.join(clang_cmd)
     clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(xxHash_dir())
+    clang_cmd += ' ' + args.compiler_options
     try_command(clang_cmd, shell=True)
 
 def make_test_binary(args):

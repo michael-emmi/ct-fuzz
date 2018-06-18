@@ -82,6 +82,9 @@ static void registerThisPass(const PassManagerBuilder &,
 }
 
 static RegisterStandardPasses
-    //RegisterMyPass(PassManagerBuilder::EP_OptimizerLast,
-    RegisterMyPass(PassManagerBuilder::EP_EnabledOnOptLevel0,
+    RegisterThisPass_0(PassManagerBuilder::EP_OptimizerLast,
+                   registerThisPass);
+
+static RegisterStandardPasses
+    RegisterThisPass_1(PassManagerBuilder::EP_EnabledOnOptLevel0,
                    registerThisPass);
