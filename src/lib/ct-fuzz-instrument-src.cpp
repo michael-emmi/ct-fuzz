@@ -49,7 +49,8 @@ bool CTFuzzInstrumentSrc::runOnModule(Module& M) {
   updateOnCondFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_cond");
   updateOnAddrFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_addr");	
   for (auto& F : M.functions())
-    if (!F.hasName() || !Naming::isCTFuzzFunc(F.getName()))
+    if (!F.hasName() ||
+          (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
       this->visit(F);
   return false;
 }
@@ -67,5 +68,6 @@ static void registerThisPass(const PassManagerBuilder &,
 }
 
 static RegisterStandardPasses
-    RegisterMyPass(PassManagerBuilder::EP_OptimizerLast,
+    //RegisterMyPass(PassManagerBuilder::EP_OptimizerLast,
+    RegisterMyPass(PassManagerBuilder::EP_EnabledOnOptLevel0,
                    registerThisPass);
