@@ -3,13 +3,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "ct-fuzz-utils.h"
-//#include "ct-fuzz-observation.h"
 
 void PREFIX(public_in)();
 void PREFIX(assume)(bool, char* msg);
-uint16_t PREFIX(array_len)(void*);
+uint16_t PREFIX(array_len)(const char* const);
 
-#define CT_FUZZ_SPEC(F) void __ct_fuzz_spec_ ## F
+#define CT_FUZZ_SPEC(RET,F,...) \
+  RET F(__VA_ARGS__); \
+  void* __ct_fuzz_dummy_ ## F() { return (void*)&F;} \
+  void __ct_fuzz_spec_ ## F(__VA_ARGS__)
+
 #define CT_FUZZ_ASSUME(cond) PREFIX(assume)(cond, "assumption violation")
 
 #endif
