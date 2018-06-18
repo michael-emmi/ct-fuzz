@@ -5,11 +5,11 @@ We use `CT_FUZZ_SPEC` macro to annotate a function. Annotation macro starts with
 // source function
 void foo(char* a, short b, long c);
 
-// specification function
-CT_FUZZ_SPEC(void, foo, char* a, short b, long c);
+// specification definition
+CT_FUZZ_SPEC(void, foo, char* a, short b, long c) {...}
 ```
 
-Note that `SPEC` functions should not have any side-effects. For example, the following function annotation should be avoided.
+Note that the body of `CT_FUZZ_SPEC` should not have any side-effects. For example, the following function annotation should be avoided.
 ```C
 CT_FUZZ_SPEC(void, foo, int a) {
   for (unsigned i = 0; i < a; ++i)
@@ -27,6 +27,6 @@ CT_FUZZ_SPEC(foo)(char* a) {
 ```
 
 
-Function `__ct_fuzz_array_len` returns the number of elements a pointer argument points to. A pointer to a single element should have length 0.
+Function `__ct_fuzz_array_len` returns the number of elements a pointer argument points to. A pointer to a single element should have length 1.
 
 Macro `CT_FUZZ_ASSUME` is used to place assumptions. If the condition argument doesn't hold, the execution stops.
