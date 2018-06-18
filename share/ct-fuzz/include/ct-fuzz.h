@@ -2,7 +2,8 @@
 #define CT_FUZZ_H
 #include <stdbool.h>
 #include <stdint.h>
-#include "ct-fuzz-observation.h"
+#include "ct-fuzz-utils.h"
+//#include "ct-fuzz-observation.h"
 
 void PREFIX(public_in)();
 void PREFIX(assume)(bool, char* msg);

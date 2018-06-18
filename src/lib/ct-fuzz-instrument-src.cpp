@@ -45,9 +45,23 @@ void CTFuzzInstrumentSrc::visitSwitchInst(SwitchInst& swi) {
   llvm_unreachable("Not really expect to see switchinsts.");
 }
 
+Function* CTFuzzInstrumentSrc::buildUpdateOnCondFunc(Module& M) {
+  LLVMContext& C = M.getContext();
+  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {Type::getInt1Ty(C)}, false) ;
+  return Function::Create(FT, GlobalValue::ExternalLinkage, "__ct_fuzz_update_monitor_by_cond", &M);
+}
+
+Function* CTFuzzInstrumentSrc::buildUpdateOnAddrFunc(Module& M) {
+  LLVMContext& C = M.getContext();
+  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {Type::getInt8PtrTy(C)}, false) ;
+  return Function::Create(FT, GlobalValue::ExternalLinkage, "__ct_fuzz_update_monitor_by_addr", &M);
+}
+
 bool CTFuzzInstrumentSrc::runOnModule(Module& M) {
-  updateOnCondFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_cond");
-  updateOnAddrFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_addr");	
+  //updateOnCondFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_cond");
+  //updateOnAddrFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_addr");	
+  updateOnCondFunc = buildUpdateOnCondFunc(M);
+  updateOnAddrFunc = buildUpdateOnAddrFunc(M);
   for (auto& F : M.functions())
     if (!F.hasName() ||
           (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))

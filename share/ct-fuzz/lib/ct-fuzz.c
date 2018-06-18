@@ -7,12 +7,12 @@
 #include <sys/wait.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
+#include "ct-fuzz-observation.h"
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
-#define STOP_SIGNAL 42
-#define MALLOC_MAXIMUM_SIZE 4096
+//#define MALLOC_MAXIMUM_SIZE 4096
 #define ASSUME_VIOLATION 240
-#define MEMORY_VIOLATION 420
+//#define MEMORY_VIOLATION 420
 
 #define ASSUME PREFIX(assume)
 
@@ -86,16 +86,6 @@ void PREFIX(initialize)(void) {
 void PREFIX(exec)(IDX_T);
 void PREFIX(spec)(IDX_T);
 void PREFIX(read_inputs)(void);
-
-void PREFIX(check_observations)() {
-  if (MONITORS[0] != MONITORS[1]) {
-    //int* p;
-    //DEBUG_PRINT_MSG("oops");
-    //*p = 42;
-    DEBUG_PRINT_MSG("oops");
-    raise(STOP_SIGNAL);
-  }
-}
 
 void PREFIX(main)(void) {
   PREFIX(initialize)();
