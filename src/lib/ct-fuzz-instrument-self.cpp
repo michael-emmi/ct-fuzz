@@ -47,14 +47,13 @@ Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(Module* M, CallInst* CI)
     IRB.CreateStore(&*newF->arg_begin(), P);
     uint64_t size = DL.getTypeSizeInBits(T) >> 3;
     S = ConstantInt::get(Utils::getSecondArg(CF)->getType(), size);
-    P = IRB.CreateBitCast(P, CF->arg_begin()->getType());
   } else {
     P = Utils::getFirstArg(newF);
     S = Utils::getByteSizeInSizeT(IRB, DL,
       Utils::getSecondArg(newF), cast<PointerType>(T)->getElementType(), sizeT);
   }
 
-  IRB.CreateCall(CF, {P, S});
+  IRB.CreateCall(CF, {IRB.CreateBitCast(P, CF->arg_begin()->getType()), S});
 
   IRB.CreateRetVoid();
 

@@ -47,5 +47,6 @@ Constant* CTFuzzInstrumentUtils::getTypeSizeInSizeT(DataLayout& DL, Type* T, Typ
 }
 
 Value* CTFuzzInstrumentUtils::getByteSizeInSizeT(IRBuilder<>& IRB, DataLayout& DL, Value* len, Type* elemT, Type* sizeT) {
+  assert(!elemT->isVoidTy() && "what's the size of void type?");
   return IRB.CreateMul(IRB.CreateZExt(len, sizeT), getTypeSizeInSizeT(DL, elemT, sizeT));
 }
