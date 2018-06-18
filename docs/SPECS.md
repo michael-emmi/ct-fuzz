@@ -21,7 +21,7 @@ CT_FUZZ_SPEC(void, foo, int a) {
 
 We use `__ct_fuzz_public_in` function to annotate public information. Arguments of pointer types are assumed to be public. However, the elements they point to are not necessarily made public. To annotate public pointer elements, call function `__ct_fuzz_public_in` with two arguments, the first argument being the pointer and the second being the number of pointer elements. For example,
 ```C
-CT_FUZZ_SPEC(foo)(char* a) {
+CT_FUZZ_SPEC(void, foo, char* a) {
   __ct_fuzz_public_in(a, strlen(a));
 }
 ```
