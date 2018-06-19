@@ -38,17 +38,24 @@ Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(Module* M, CallInst* CI)
   BasicBlock* B = BasicBlock::Create(M->getContext(), "", newF);
   IRBuilder<> IRB(B);
 
+  // the pointer arg of public value handle function
   Value* P = nullptr;
+  // the size arg
   Value* S = nullptr;
   assert(!T->isAggregateType() && "Doesn't support aggregate types");
 
   if (!T->isPointerTy()) {
+    // if the argument is not a pointer, create an allocated space,
+    // store its value in, and pass the pointer to the allocated space
     P = IRB.CreateAlloca(T);
-    IRB.CreateStore(&*newF->arg_begin(), P);
+    IRB.CreateStore(Utils::getFirstArg(newF), P);
+    // FIXME: I'm not sure if GetTypeSizeInBits is proper here
     uint64_t size = DL.getTypeSizeInBits(T) >> 3;
     S = ConstantInt::get(Utils::getSecondArg(CF)->getType(), size);
   } else {
     P = Utils::getFirstArg(newF);
+    // note that the second argument for __ct_fuzz_public_in function is
+    // the number of elements in this array
     S = Utils::getByteSizeInSizeT(IRB, DL,
       Utils::getSecondArg(newF), cast<PointerType>(T)->getElementType(), sizeT);
   }
@@ -64,12 +71,16 @@ Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(Module* M, CallInst* CI)
 void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Module& M, Function* specF) {
   auto cis = getPublicInCalls(specF);
   std::map<CallInst*, Function*> bindings;
+
+  // note that we create a new function for each call site
+  // which could be implemented in a per-type way
+  // for the simplicity of the implementations, I don't do it
   for (auto ci : cis) {
     auto F = buildPublicInHandleFunc(&M, ci);
     bindings[ci] = F;
   }
 
-  // first replace public_in calls with instrumented ones
+  // replace __ct_fuzz_public_in calls with instrumented ones
   for (auto& binding: bindings) {
     CallInst* oc = binding.first;
     Function* f = binding.second;
@@ -88,12 +99,7 @@ void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Module& M, Function* specF)
     PF->eraseFromParent();
 }
 
-inline void createCallToRWF(IRBuilder<>& IRB, Function* RWF, Value* A, Value* CI) {
-  auto P = IRB.CreateBitCast(A, RWF->arg_begin()->getType());
-  IRB.CreateCall(RWF, {P, CI});
-}
-
-AllocaInst* createArray(IRBuilder<>& IRB, Type* T) {
+inline AllocaInst* createArray(IRBuilder<>& IRB, Type* T) {
   return IRB.CreateAlloca(ArrayType::get(T, 2));
 }
 
@@ -101,11 +107,11 @@ inline ConstantInt* createIdx(Value* AI, idx_t idx) {
   return ConstantInt::get(IntegerType::get(AI->getContext(), 64), idx);
 }
 
-inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, idx_t idx, Type* T = nullptr) {
+inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, idx_t idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), createIdx(AI, idx)});
 }
 
-inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx, Type* T = nullptr) {
+inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
@@ -128,7 +134,7 @@ CallInst* CTFuzzInstrumentSelf::readInputs(Module& M, Function* mainF, Function*
 
   // encoding of pointer arguments
   // the first two bytes are element length (*not byte size*)
-  // then read (element size * element length) bytes 
+  // then read (element size * element length) bytes
   auto GI = [&IRB, &M, &stdinRF, &srcF, &boxes, &sizeT, this](idx_t idx) -> void {
     unsigned i = 0;
     LLVMContext& C = M.getContext();
@@ -136,22 +142,24 @@ CallInst* CTFuzzInstrumentSelf::readInputs(Module& M, Function* mainF, Function*
 
     for (auto& arg : srcF->args()) {
       Type* T = arg.getType();
+      Type* ptrArgT = Utils::getFirstArg(stdinRF)->getType();
       bool isPtrTy = T->isPointerTy();
       // when the argument is not pointer type, just create a box to hold the two values
       if (!isPtrTy) {
         auto size = Utils::getTypeSizeInSizeT(DL, T, sizeT);
-        createCallToRWF(IRB, stdinRF, getElement(IRB, boxes[i].first, idx, T), size);
+        auto ptr = getElement(IRB, boxes[i].first, idx);
+        IRB.CreateCall(stdinRF, {IRB.CreateBitCast(ptr, ptrArgT), size});
       } else {
         // when the argument is pointer type, create two boxes:
         // one for lengths
         // the other for pointers
         auto lenP = getElement(IRB, boxes[i].second, idx);
-        createCallToRWF(IRB, stdinRF, lenP,
-          Utils::getTypeSizeInSizeT(DL, Utils::getLenT(C), sizeT));
+        auto lenS = Utils::getTypeSizeInSizeT(DL, Utils::getLenT(C), sizeT);
+        IRB.CreateCall(stdinRF, {IRB.CreateBitCast(lenP, ptrArgT), lenS});
         auto sizeV = Utils::getByteSizeInSizeT(IRB, DL, IRB.CreateLoad(lenP),
           cast<PointerType>(T)->getElementType(), sizeT);
         CallInst* mallocC = IRB.CreateCall(mallocF, {sizeV});
-        createCallToRWF(IRB, stdinRF, mallocC, sizeV);
+        IRB.CreateCall(stdinRF, {IRB.CreateBitCast(mallocC, ptrArgT), sizeV});
         IRB.CreateStore(IRB.CreateBitCast(mallocC, T), getElement(IRB, boxes[i].first, idx));
       }
       ++i;
@@ -176,7 +184,7 @@ Function* CTFuzzInstrumentSelf::buildNewSpecFunc(Module& M, Function* specF) {
     if (T->isPointerTy())
       newTs.push_back(Utils::getLenT(C));
   }
-  
+
   FunctionType* NT = FunctionType::get(specF->getReturnType(), newTs, false);
   Function* NewF = Function::Create(NT, specF->getLinkage(), specF->getName()+"_new", &M);
 
@@ -226,7 +234,7 @@ CallInst* CTFuzzInstrumentSelf::checkInputs(Module& M, Function* mainF, Function
 
   for (auto& arg : specF->args()) {
     Type* T = arg.getType();
-    args.push_back(IRB.CreateLoad(getElement(IRB, boxes[i].first, idx, T)));
+    args.push_back(IRB.CreateLoad(getElement(IRB, boxes[i].first, idx)));
     if (T->isPointerTy())
       args.push_back(IRB.CreateLoad(getElement(IRB, boxes[i].second, idx)));
     ++i;
@@ -302,11 +310,20 @@ bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
   Function* specF = getSpecFunction(M);
   Function* mainF = Utils::getFunction(M, "__ct_fuzz_main");
 
+  // two heavily used functions
   mallocF = Utils::getFunction(M, "__ct_fuzz_malloc_wrapper");
   memcpyF = Utils::getFunction(M, "__ct_fuzz_memcpy_wrapper");
 
-  BoxesList boxes;
+  // this function instruments __ct_fuzz_public_in calls such that
+  // the value passed to the these calls are either recorded or checked
+  // via calling public_value_handle functions
   insertPublicInHandleFuncs(M, specF);
+
+  // boxes is a pair of pointers
+  // the first element is a pointer to the function argument
+  // the second element is a pointer to the element length
+  // if the argument is not a pointer, then the second element is nullptr
+  BoxesList boxes;
   auto I1 = readInputs(M, mainF, srcF, boxes);
   auto I2 = checkInputs(M, mainF, specF, boxes);
   auto I3 = execInputFunc(M, mainF, srcF, boxes);

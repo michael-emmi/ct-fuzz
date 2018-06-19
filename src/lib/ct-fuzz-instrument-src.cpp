@@ -1,4 +1,3 @@
-#include "ct-fuzz-instrument-src.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
@@ -11,12 +10,9 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/IRBuilder.h"
-#include "ct-fuzz-instrument-utils.h"
 #include "ct-fuzz-naming.h"
-
-#include <utility>
-#include <vector>
-#include <map>
+#include "ct-fuzz-instrument-src.h"
+#include "ct-fuzz-instrument-utils.h"
 
 using namespace llvm;
 
@@ -45,26 +41,23 @@ void CTFuzzInstrumentSrc::visitSwitchInst(SwitchInst& swi) {
   llvm_unreachable("Not really expect to see switchinsts.");
 }
 
-Function* CTFuzzInstrumentSrc::buildUpdateOnCondFunc(Module& M) {
-  LLVMContext& C = M.getContext();
-  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {Type::getInt1Ty(C)}, false) ;
-  return Function::Create(FT, GlobalValue::ExternalLinkage, "__ct_fuzz_update_monitor_by_cond", &M);
-}
+// TODO: handle more terminitor instructions
 
-Function* CTFuzzInstrumentSrc::buildUpdateOnAddrFunc(Module& M) {
+void CTFuzzInstrumentSrc::buildUpdateFuncs(Module& M) {
   LLVMContext& C = M.getContext();
-  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {Type::getInt8PtrTy(C)}, false) ;
-  return Function::Create(FT, GlobalValue::ExternalLinkage, "__ct_fuzz_update_monitor_by_addr", &M);
+  auto buildUpdateFunc = [&M, &C](Type* argT, std::string name) -> Function* {
+    FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {argT}, false) ;
+    return Function::Create(FT, GlobalValue::ExternalLinkage, name, &M);
+  };
+  updateOnCondFunc = buildUpdateFunc(Type::getInt1Ty(C), "__ct_fuzz_update_monitor_by_cond");
+  updateOnAddrFunc = buildUpdateFunc(Type::getInt8PtrTy(C), "__ct_fuzz_update_monitor_by_addr");
 }
 
 bool CTFuzzInstrumentSrc::runOnModule(Module& M) {
-  //updateOnCondFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_cond");
-  //updateOnAddrFunc = CTFuzzInstrumentUtils::getFunction(M, "__ct_fuzz_update_monitor_by_addr");	
-  updateOnCondFunc = buildUpdateOnCondFunc(M);
-  updateOnAddrFunc = buildUpdateOnAddrFunc(M);
+  buildUpdateFuncs(M);
   for (auto& F : M.functions())
     if (!F.hasName() ||
-          (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
+        (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
       this->visit(F);
   return false;
 }
@@ -84,7 +77,8 @@ static void registerThisPass(const PassManagerBuilder &,
 static RegisterStandardPasses
     RegisterThisPass_0(PassManagerBuilder::EP_OptimizerLast,
                    registerThisPass);
-
+// we need this because llvm treats custom pass as optimization
+// and thus doesn't invoke it on O0 by default
 static RegisterStandardPasses
     RegisterThisPass_1(PassManagerBuilder::EP_EnabledOnOptLevel0,
                    registerThisPass);

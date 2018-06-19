@@ -18,8 +18,7 @@ class CTFuzzInstrumentSrc: public llvm::ModulePass, public llvm::InstVisitor<CTF
   private:
     llvm::Function* updateOnCondFunc;
     llvm::Function* updateOnAddrFunc;
-    llvm::Function* buildUpdateOnCondFunc(llvm::Module& M);
-    llvm::Function* buildUpdateOnAddrFunc(llvm::Module& M);
+    void buildUpdateFuncs(llvm::Module& M);
 };
 
 #endif
