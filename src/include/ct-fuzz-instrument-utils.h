@@ -14,6 +14,7 @@ class CTFuzzInstrumentUtils  {
     static llvm::Function* getFunction(llvm::Module& M, std::string name);
     static llvm::Value* getSecondArg(llvm::Function* F);
     static llvm::Value* getFirstArg(llvm::Function* F);
+    static llvm::Value* getLastArg(llvm::Function* F);
     static std::vector<llvm::CallInst*> getCallFromFunc(llvm::Function* F, std::string FN);
     static llvm::CallInst* getCallToFuncOnce(llvm::Function* F, std::string FN);
     static llvm::IntegerType* getLenT(llvm::LLVMContext& C);

@@ -18,6 +18,11 @@ Value* CTFuzzInstrumentUtils::getFirstArg(Function* F) {
   return &*(F->arg_begin());
 }
 
+Value* CTFuzzInstrumentUtils::getLastArg(Function* F) {
+  auto I = F->arg_end();
+  return &*(--I);
+}
+
 std::vector<CallInst*> CTFuzzInstrumentUtils::getCallFromFunc(Function* F, std::string FN) {
   std::vector<CallInst*> cis;
   for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {

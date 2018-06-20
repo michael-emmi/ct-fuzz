@@ -1,13 +1,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/wait.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-states.h"
 #include "ct-fuzz-observation.h"
+#include "ct-fuzz-read.h"
 
 #define PUBLIC_VALUE_MAX_COUNT 1000
 //#define MALLOC_MAXIMUM_SIZE 4096
@@ -15,8 +15,6 @@
 //#define MEMORY_VIOLATION 420
 
 #define ASSUME PREFIX(assume)
-
-typedef uint16_t len_t;
 
 void ASSUME(bool cond, char* msg) {
   if (!cond) {
@@ -65,13 +63,6 @@ void PREFIX(handle_public_value)(char* src, size_t size) {
     char* v = PREFIX(public_values)[PREFIX(public_value_check_idx)++];
     ASSUME(memcmp(src, v, size) == 0, "Public values mismatch.");
   }
-}
-
-void PREFIX(stdin_read)(void* buf, size_t size) {
-  // not sure if the if condition is required.
-  // it's added just to make sure nothing bad happens.
-  if (size)
-    read(0, buf, size);
 }
 
 void PREFIX(initialize)(void) {

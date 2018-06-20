@@ -19,12 +19,22 @@ add_library(CTFuzzInstrumentSrc MODULE
 add_library(xxHash MODULE
   xxHash/xxhash.c)
 
+add_library(CTFuzzReadInputs MODULE
+  src/lib/ct-fuzz-read-inputs.cpp
+  src/lib/ct-fuzz-instrument-utils.cpp
+)
+
 target_include_directories(CTFuzzInstrumentSrc PUBLIC
   ${LLVM_INCLUDE_DIRS}
   src/include
 )
 
 target_include_directories(CTFuzzInstrumentSelf PUBLIC
+  ${LLVM_INCLUDE_DIRS}
+  src/include
+)
+
+target_include_directories(CTFuzzReadInputs PUBLIC
   ${LLVM_INCLUDE_DIRS}
   src/include
 )
@@ -86,6 +96,9 @@ set_target_properties(CTFuzzInstrumentSrc PROPERTIES
 set_target_properties(CTFuzzInstrumentSelf PROPERTIES
     COMPILE_FLAGS "-fno-rtti"
 )
+set_target_properties(CTFuzzReadInputs PROPERTIES
+    COMPILE_FLAGS "-fno-rtti"
+)
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
@@ -94,6 +107,9 @@ if(APPLE)
         LINK_FLAGS "-undefined dynamic_lookup"
     )
     set_target_properties(CTFuzzInstrumentSelf PROPERTIES
+        LINK_FLAGS "-undefined dynamic_lookup"
+    )
+  set_target_properties(CTFuzzReadInputs PROPERTIES
         LINK_FLAGS "-undefined dynamic_lookup"
     )
 endif(APPLE)
