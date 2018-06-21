@@ -73,7 +73,7 @@ void PREFIX(generate_ptr_generic)(unsigned indirection, generate_func_t callback
   PREFIX(stdout_write)(&len, sizeof(len_t));
   for (len_t i = 0; i < len; ++i)
     if (indirection)
-      PREFIX(generate_ptr_generic)(--indirection, callback);
+      PREFIX(generate_ptr_generic)(indirection - 1, callback);
     else
       (*callback)();
 }
