@@ -15,9 +15,13 @@ class CTFuzzReadInputs : public llvm::FunctionPass {
     CTFuzzReadInputs() : llvm::FunctionPass(ID) {}
     bool runOnFunction(llvm::Function& F) override;
   private:
-    std::map<std::string, llvm::Function*> mappings;
+    std::map<std::string, llvm::Function*> readf_mappings;
+    std::map<std::string, llvm::Function*> generatef_mappings;
     llvm::Function* stdinRF;
+    llvm::Function* stdoutWF;
     llvm::Function* genericPtrReadF;
+    llvm::Function* genericPtrGenerateF;
     llvm::Function* getReadFunc(llvm::Type* elemT, llvm::Module* M);
+    llvm::Function* getGenerateFunc(llvm::Type* elemT, llvm::Module* M);
 };
 #endif

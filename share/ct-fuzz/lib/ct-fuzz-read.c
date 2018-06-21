@@ -38,17 +38,42 @@ len_t PREFIX(read_array_len)(void) {
   return ret;
 }
 
-void PREFIX(read_ptr_generic)(char** ppt, size_t es, unsigned indirection, func_t callback) {
+void PREFIX(read_ptr_generic)(char** ppt, size_t es, unsigned indirection, read_func_t callback) {
   len_t len = PREFIX(read_array_len)();
   size_t rs = (indirection? sizeof(char*) : es);
-  //printf("len: %u\n", len);
   *ppt = malloc(rs*len);
   PREFIX(set_arr_len)(*ppt, len);
-  //printf("indirection: %u\n", indirection);
-  //printf("element size: %u\n", es);
   for (len_t i = 0; i < len; ++i)
     if (indirection)
-      PREFIX(read_ptr_generic)(*ppt + rs*i, es, --indirection, callback);
+      PREFIX(read_ptr_generic)(*ppt + rs*i, es, indirection - 1, callback);
     else
       (*callback)(*ppt + rs*i);
+}
+
+//===========================================================
+#define ARR_LEN_MAX 8
+
+void PREFIX(stdout_write)(char* buf, size_t size) {
+  char tmp[64];
+  for (size_t i = 0; i < size; ++i)
+    sprintf(tmp+4*i, "\\x%02X", buf[i]);
+  write(1, tmp, size*4);
+}
+
+static len_t PREFIX(generate_array_len)(void) {
+  if (rand() & 1U)
+    return 1;
+  else
+    return (rand() % ARR_LEN_MAX) + 2;
+}
+
+void PREFIX(generate_ptr_generic)(unsigned indirection, generate_func_t callback) {
+  len_t len = PREFIX(generate_array_len)();
+  // write length first
+  PREFIX(stdout_write)(&len, sizeof(len_t));
+  for (len_t i = 0; i < len; ++i)
+    if (indirection)
+      PREFIX(generate_ptr_generic)(--indirection, callback);
+    else
+      (*callback)();
 }
