@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <time.h>
 #include "ct-fuzz-read.h"
 
 typedef struct {
@@ -18,11 +19,39 @@ static void PREFIX(set_arr_len)(char* ptr, len_t len) {
   ARR_INFO_LIST[ARR_INFO_COUNTER++] = ai;
 }
 
-len_t PREFIX(get_arr_len)(char* ptr) {
+len_t PREFIX(get_arr_len)(const char* ptr) {
   for (unsigned char i = 0; i < ARR_INFO_COUNTER; ++i)
     if (ARR_INFO_LIST[i]->ptr == ptr)
       return ARR_INFO_LIST[i]->len;
   assert(0 && "not a valid pointer to query array length");
+}
+
+len_t PREFIX(max_len)(len_t a, len_t b) {
+  //printf("size 1 is: %u\n", a);
+  //printf("size 2 is: %u\n", b);
+  if (!a || !b) {
+    // be demonic here: if either one has zero-sized memory,
+    // make both pointer arugments null.
+    return 0;
+  }
+  else if (a > b)
+    return a;
+  else
+    return b;
+}
+
+len_t PREFIX(min_len)(len_t a, len_t b) {
+  //printf("size 1 is: %u\n", a);
+  //printf("size 2 is: %u\n", b);
+  if (!a || !b) {
+    // be demonic here: if either one has zero-sized memory,
+    // make both pointer arugments null.
+    return 0;
+  }
+  else if (a > b)
+    return b;
+  else
+    return a;
 }
 
 void PREFIX(stdin_read)(void* buf, size_t size) {
@@ -76,4 +105,31 @@ void PREFIX(generate_ptr_generic)(unsigned indirection, generate_func_t callback
       PREFIX(generate_ptr_generic)(indirection - 1, callback);
     else
       (*callback)();
+}
+
+//===========================================================
+void PREFIX(merge_ptr_generic)(char**ppt, char** ppt_1, char** ppt_2, size_t es, unsigned indirection, merge_func_t callback) {
+  len_t len_1 = PREFIX(get_arr_len)(*ppt_1);
+  len_t len_2 = PREFIX(get_arr_len)(*ppt_2);
+  len_t max_len = PREFIX(max_len)(len_1, len_2);
+  size_t rs = (indirection? sizeof(char*) : es);
+  *ppt = malloc(rs*max_len);
+  for (len_t i = 0; i < PREFIX(min_len)(len_1, len_2); ++i) {
+    if (indirection)
+      PREFIX(merge_ptr_generic)(*ppt + rs*i, *ppt_1 + rs*i, *ppt_2 + rs*i, es, indirection - 1, callback);
+    else
+      (*callback)(*ppt + rs*i, *ppt_1 + rs*i, *ppt_2 + rs*i);
+  }
+}
+
+//==========================================================
+void PREFIX(deep_copy_ptr_generic)(char** dest, char** src, size_t es, unsigned indirection, deep_copy_func_t callback) {
+  len_t len = PREFIX(get_arr_len)(*src);
+  size_t rs = (indirection? sizeof(char*) : es);
+  for (len_t i = 0; i < len; ++i) {
+    if (indirection)
+      PREFIX(deep_copy_ptr_generic)(*dest + rs*i, *src + rs*i, es, indirection - 1, callback);
+    else
+      (*callback)(*dest + rs*i, *src + rs*i);
+  }
 }

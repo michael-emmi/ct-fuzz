@@ -11,12 +11,16 @@
 typedef uint16_t len_t;
 typedef void (*read_func_t)(char*);
 typedef void (*generate_func_t)(void);
+typedef void (*merge_func_t)(char*, char*, char*);
+typedef void (*deep_copy_func_t)(char*, char*);
 
 extern len_t PREFIX(read_array_len)(void);
-extern len_t PREFIX(get_arr_len)(char*);
+extern len_t PREFIX(get_arr_len)(const char*);
 extern void PREFIX(stdin_read)(void* buf, size_t size);
 extern void PREFIX(read_ptr_generic)(char**, size_t, unsigned, read_func_t);
 
 //======================================================
 extern void PREFIX(stdout_write)(char*, size_t);
 extern void PREFIX(write_ptr_generic)(unsigned, generate_func_t);
+
+//======================================================

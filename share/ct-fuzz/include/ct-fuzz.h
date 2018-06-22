@@ -6,7 +6,7 @@
 
 void PREFIX(public_in)();
 void PREFIX(assume)(bool, char* msg);
-uint16_t PREFIX(array_len)(const char* const);
+uint16_t PREFIX(get_arr_len)(const char* const);
 
 #define CT_FUZZ_SPEC(RET,F,...) \
   RET F(__VA_ARGS__); \

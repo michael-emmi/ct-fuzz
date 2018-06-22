@@ -32,20 +32,6 @@ void* PREFIX(malloc_wrapper)(size_t size) {
   return malloc(size);
 }
 
-len_t PREFIX(max_len)(len_t a, len_t b) {
-  //printf("size 1 is: %u\n", a);
-  //printf("size 2 is: %u\n", b);
-  if (!a || !b) {
-    // be demonic here: if either one has zero-sized memory,
-    // make both pointer arugments null.
-    return 0;
-  }
-  else if (a > b)
-    return a;
-  else
-    return b;
-}
-
 void PREFIX(memcpy_wrapper)(char* dest, char* src, size_t num) {
   memcpy(dest, src, num);
 }
@@ -68,6 +54,7 @@ void PREFIX(handle_public_value)(char* src, size_t size) {
 void PREFIX(initialize)(void) {
   PREFIX(initialize_states)();
   PREFIX(dbg_init)();
+  srand(time(0));
 }
 
 //void __ct_fuzz_switch(void) {
@@ -77,6 +64,7 @@ void PREFIX(initialize)(void) {
 void PREFIX(exec)(IDX_T);
 void PREFIX(spec)(IDX_T);
 void PREFIX(read_inputs)(void);
+void PREFIX(merge_ptr_inputs)(void);
 
 void PREFIX(main)(void) {
   PREFIX(initialize)();
@@ -85,6 +73,8 @@ void PREFIX(main)(void) {
   // make this loop a macro? Yikes.
   for (RUN_ID = 0; RUN_ID < 2; ++RUN_ID)
     PREFIX(spec)(RUN_ID);
+
+  PREFIX(merge_ptr_inputs)();
 
   for (RUN_ID = 0; RUN_ID < 2; ++RUN_ID) {
     pid_t pid = fork();

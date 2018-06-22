@@ -17,14 +17,15 @@
 #include "ct-fuzz-naming.h"
 #include "ct-fuzz-options.h"
 #include "ct-fuzz-instrument-utils.h"
+#include "ct-fuzz-read-inputs.h"
 
 #include <utility>
 #include <vector>
 #include <map>
 
 typedef unsigned char idx_t;
-typedef std::pair<llvm::AllocaInst*, llvm::AllocaInst*> Boxes;
-typedef std::vector<Boxes> BoxesList;
+//typedef std::pair<llvm::AllocaInst*, llvm::AllocaInst*> Boxes;
+typedef std::vector<llvm::AllocaInst*> BoxList;
 
 class CTFuzzInstrumentSelf: public llvm::ModulePass {
   public:
@@ -34,14 +35,14 @@ class CTFuzzInstrumentSelf: public llvm::ModulePass {
 
   private:
     llvm::Function* mallocF;
-    llvm::Function* memcpyF;
     void updateMonitors(llvm::Module& M);
     llvm::Function* buildPublicInHandleFunc(llvm::Module* M, llvm::CallInst* CI);
     void insertPublicInHandleFuncs(llvm::Module& M, llvm::Function* specF);
-    llvm::CallInst* readInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, BoxesList& boxes);
-    llvm::Function* buildNewSpecFunc(llvm::Module& M, llvm::Function* specF);
-    llvm::CallInst* checkInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* specF, const BoxesList& boxes);
-    llvm::CallInst* execInputFunc(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxesList& boxes);
+    llvm::CallInst* readInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, BoxList& boxes);
+    llvm::CallInst* checkInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* specF, const BoxList& boxes);
+    llvm::CallInst* mergePtrInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxList& boxes, BoxList& ptrBoxes);
+    llvm::CallInst* execInputFunc(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxList& boxes, const BoxList& ptrBoxes);
+    CTFuzzReadInputs* ri;
 };
 
 #endif

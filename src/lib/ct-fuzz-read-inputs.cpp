@@ -9,21 +9,21 @@
 using namespace llvm;
 typedef CTFuzzInstrumentUtils Utils;
 
-unsigned getIndirectionLevel(Type* T) {
+unsigned CTFuzzReadInputs::getIndirectionLevel(Type* T) {
   if (!T->isPointerTy())
     return 0;
   else
     return 1 + getIndirectionLevel(cast<PointerType>(T)->getElementType());
 }
 
-Type* getUltimateElemTy(Type* T) {
+Type* CTFuzzReadInputs::getUltimateElemTy(Type* T) {
   if (!T->isPointerTy())
     return T;
   else
     return getUltimateElemTy(cast<PointerType>(T)->getElementType());
 }
 
-std::string getTypeName(Type* T) {
+std::string CTFuzzReadInputs::getTypeName(Type* T) {
   if (IntegerType* it = dyn_cast<IntegerType>(T))
     return "i" + std::to_string(it->getBitWidth());
   else if (ArrayType* at = dyn_cast<ArrayType>(T))
@@ -95,7 +95,7 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
   return F;
 }
 
-Function* CTFuzzReadInputs::getGenerateFunc(llvm::Type* elemT, llvm::Module* M) {
+Function* CTFuzzReadInputs::getGenerateFunc(Type* elemT, Module* M) {
   Type* sizeT = Utils::getSecondArg(stdoutWF)->getType();
   LLVMContext& C = M->getContext();
   auto DL = M->getDataLayout();
@@ -145,25 +145,125 @@ Function* CTFuzzReadInputs::getGenerateFunc(llvm::Type* elemT, llvm::Module* M) 
   return F;
 }
 
-bool CTFuzzReadInputs::runOnFunction(Function& F) {
-  if (F.getName() == "f") {
-    stdinRF = F.getParent()->getFunction("__ct_fuzz_stdin_read");
-    stdoutWF = F.getParent()->getFunction("__ct_fuzz_stdout_write");
-    genericPtrReadF = F.getParent()->getFunction("__ct_fuzz_read_ptr_generic");
-    genericPtrGenerateF = F.getParent()->getFunction("__ct_fuzz_generate_ptr_generic");
-    IRBuilder<> IRB(&*(F.getEntryBlock().getFirstInsertionPt()));
-    for (auto& arg: F.args()) {
-      auto box = IRB.CreateAlloca(arg.getType());
-      Function* RF = getReadFunc(arg.getType(), F.getParent());
-      Function* GF = getGenerateFunc(arg.getType(), F.getParent());
-      IRB.CreateCall(RF, {box});
-      IRB.CreateCall(GF, {});
-      arg.replaceAllUsesWith(IRB.CreateLoad(box));
-    }
+Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
+  Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
+  PointerType* pt = PointerType::getUnqual(elemT);
+  LLVMContext& C = M->getContext();
+  auto DL = M->getDataLayout();
+
+  std::string TN = getTypeName(elemT);
+  // already got function corresponding to this type
+  if (mergef_mappings.count(TN))
+    return mergef_mappings[TN];
+  std::string FN = "__ct_fuzz_merge_" + TN;
+  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {pt, pt, pt}, false);
+  Function* F = Function::Create(FT, GlobalValue::InternalLinkage, FN, M);
+  BasicBlock* B = BasicBlock::Create(C, "", F);
+  IRBuilder<> IRB(B);
+
+  if (!elemT->isPointerTy()) {
+    if (IntegerType* it = dyn_cast<IntegerType>(elemT)) {
+      // pass
+    } else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
+      Type* aet = at->getElementType();
+      for (unsigned i = 0; i < at->getNumElements(); ++i) {
+        auto idx = ConstantInt::get(IntegerType::get(C, 64), i);
+        if (aet->isPointerTy())
+          IRB.CreateCall(getMergeFunc(aet, M),
+              {IRB.CreateGEP(Utils::getFirstArg(F), {idx}),
+              IRB.CreateGEP(Utils::getSecondArg(F), {idx}),
+              IRB.CreateGEP(Utils::getLastArg(F), {idx})});
+      }
+    } else if (StructType* st = dyn_cast<StructType>(elemT)) {
+      for (unsigned i = 0; i < st->getNumElements(); ++i) {
+        auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
+        auto idx_2 = ConstantInt::get(IntegerType::get(C, 32), i);
+        Type* set = st->getElementType(i);
+        if (set->isPointerTy())
+          IRB.CreateCall(getMergeFunc(set, M),
+            {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
+            IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2}),
+            IRB.CreateGEP(Utils::getLastArg(F), {idx_1, idx_2})});
+      }
+    } else
+      llvm_unreachable("doesn't support this type");
+  } else {
+    // pointer type, we should leverage generic read pointer function
+    Type* uet = getUltimateElemTy(elemT);
+    PointerType* pet = cast<PointerType>(elemT);
+    unsigned indirectionLevel = getIndirectionLevel(pet->getElementType());
+    IRB.CreateCall(genericPtrMergeF,
+      {IRB.CreateBitCast(Utils::getFirstArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
+      IRB.CreateBitCast(Utils::getSecondArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
+      IRB.CreateBitCast(Utils::getLastArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
+      Utils::getTypeSizeInSizeT(DL, uet, sizeT),
+      ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
+      IRB.CreateBitCast(getMergeFunc(uet, M), Utils::getLastArg(genericPtrMergeF)->getType())});
   }
-  return false;
+
+  IRB.CreateRetVoid();
+  mergef_mappings[TN] = F;
+  return F;
 }
 
-char CTFuzzReadInputs::ID = 0;
+Function* CTFuzzReadInputs::getCopyFunc(Type* elemT, Module* M) {
+  PointerType* pt = PointerType::getUnqual(elemT);
+  Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
+  LLVMContext& C = M->getContext();
+  auto DL = M->getDataLayout();
 
-static RegisterPass<CTFuzzReadInputs> X("ct-fuzz-read-inputs", "'deserialization' pass");
+  std::string TN = getTypeName(elemT);
+  // already got function corresponding to this type
+  if (copyf_mappings.count(TN))
+    return copyf_mappings[TN];
+  std::string FN = "__ct_fuzz_copy_" + TN;
+  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {pt, pt}, false);
+  Function* F = Function::Create(FT, GlobalValue::InternalLinkage, FN, M);
+  BasicBlock* B = BasicBlock::Create(C, "", F);
+  IRBuilder<> IRB(B);
+
+  if (!elemT->isPointerTy()) {
+    if (IntegerType* it = dyn_cast<IntegerType>(elemT)) {
+      IRB.CreateCall(memcpyF,
+        {IRB.CreateBitCast(Utils::getFirstArg(F),
+          Utils::getFirstArg(memcpyF)->getType()),
+        IRB.CreateBitCast(Utils::getSecondArg(F),
+          Utils::getSecondArg(memcpyF)->getType()),
+        Utils::getTypeSizeInSizeT(DL, it, sizeT)});
+    }
+    else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
+      Type* aet = at->getElementType();
+      for (unsigned i = 0; i < at->getNumElements(); ++i) {
+        auto idx = ConstantInt::get(IntegerType::get(C, 64), i);
+        IRB.CreateCall(getCopyFunc(aet, M),
+          {IRB.CreateGEP(Utils::getFirstArg(F), {idx}),
+          IRB.CreateGEP(Utils::getSecondArg(F), {idx})});
+      }
+    } else if (StructType* st = dyn_cast<StructType>(elemT)) {
+      for (unsigned i = 0; i < st->getNumElements(); ++i) {
+        Type* set = st->getElementType(i);
+        auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
+        auto idx_2 = ConstantInt::get(IntegerType::get(C, 32), i);
+        IRB.CreateCall(getReadFunc(set, M),
+          {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
+          IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
+      }
+    } else
+      llvm_unreachable("doesn't support this type");
+  } else {
+    // pointer type, we should leverage generic read pointer function
+    Type* uet = getUltimateElemTy(elemT);
+    PointerType* pet = cast<PointerType>(elemT);
+    unsigned indirectionLevel = getIndirectionLevel(pet->getElementType());
+    IRB.CreateCall(genericPtrCopyF,
+      {IRB.CreateBitCast(Utils::getFirstArg(F), Utils::getFirstArg(genericPtrCopyF)->getType()),
+      IRB.CreateBitCast(Utils::getSecondArg(F), Utils::getSecondArg(genericPtrCopyF)->getType()),
+      Utils::getTypeSizeInSizeT(DL, uet, sizeT),
+      ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
+      IRB.CreateBitCast(getCopyFunc(uet, M), Utils::getLastArg(genericPtrCopyF)->getType())});
+  }
+
+  IRB.CreateRetVoid();
+  copyf_mappings[TN] = F;
+  return F;
+}
