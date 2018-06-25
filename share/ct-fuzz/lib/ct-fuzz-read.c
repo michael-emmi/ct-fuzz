@@ -20,21 +20,18 @@ static void PREFIX(set_arr_len)(char* ptr, len_t len) {
 }
 
 len_t PREFIX(get_arr_len)(const char* ptr) {
+  assert(ptr && "ptr can't be null");
   for (unsigned char i = 0; i < ARR_INFO_COUNTER; ++i)
     if (ARR_INFO_LIST[i]->ptr == ptr)
       return ARR_INFO_LIST[i]->len;
+  printf("addr to query: %lx\n", (unsigned long)ptr);
   assert(0 && "not a valid pointer to query array length");
 }
 
 len_t PREFIX(max_len)(len_t a, len_t b) {
   //printf("size 1 is: %u\n", a);
   //printf("size 2 is: %u\n", b);
-  if (!a || !b) {
-    // be demonic here: if either one has zero-sized memory,
-    // make both pointer arugments null.
-    return 0;
-  }
-  else if (a > b)
+  if (a > b)
     return a;
   else
     return b;
@@ -43,12 +40,7 @@ len_t PREFIX(max_len)(len_t a, len_t b) {
 len_t PREFIX(min_len)(len_t a, len_t b) {
   //printf("size 1 is: %u\n", a);
   //printf("size 2 is: %u\n", b);
-  if (!a || !b) {
-    // be demonic here: if either one has zero-sized memory,
-    // make both pointer arugments null.
-    return 0;
-  }
-  else if (a > b)
+  if (a > b)
     return b;
   else
     return a;
@@ -111,17 +103,22 @@ void PREFIX(generate_ptr_generic)(unsigned indirection, generate_func_t callback
 
 //===========================================================
 void PREFIX(merge_ptr_generic)(char**ppt, char** ppt_1, char** ppt_2, size_t es, unsigned indirection, merge_func_t callback) {
-  len_t len_1 = PREFIX(get_arr_len)(*ppt_1);
-  len_t len_2 = PREFIX(get_arr_len)(*ppt_2);
+  len_t len_1 = ppt_1? PREFIX(get_arr_len)(*ppt_1) : 0;
+  len_t len_2 = ppt_2? PREFIX(get_arr_len)(*ppt_2) : 0;
   len_t max_len = PREFIX(max_len)(len_1, len_2);
   size_t rs = (indirection? sizeof(char*) : es);
   *ppt = malloc(rs*max_len);
   PREFIX(set_arr_len)(*ppt, max_len);
-  for (len_t i = 0; i < PREFIX(min_len)(len_1, len_2); ++i) {
+  for (len_t i = 0; i < max_len; ++i) {
+    char* p = *ppt_1 + rs*i;
+    char* q = *ppt_2 + rs*i;
+    // the longer one merges with itself
+    char* p1 = i < len_1? p : q;
+    char* p2 = i < len_2? q : p;
     if (indirection)
-      PREFIX(merge_ptr_generic)(*ppt + rs*i, *ppt_1 + rs*i, *ppt_2 + rs*i, es, indirection - 1, callback);
+      PREFIX(merge_ptr_generic)(*ppt + rs*i, p1, p2, es, indirection - 1, callback);
     else
-      (*callback)(*ppt + rs*i, *ppt_1 + rs*i, *ppt_2 + rs*i);
+      (*callback)(*ppt + rs*i, p1, p2);
   }
 }
 
