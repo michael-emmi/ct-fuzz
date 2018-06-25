@@ -80,6 +80,7 @@ void PREFIX(read_ptr_generic)(char** ppt, size_t es, unsigned indirection, read_
 }
 
 //===========================================================
+/*
 #define ARR_LEN_MAX 8
 
 void PREFIX(stdout_write)(char* buf, size_t size) {
@@ -106,6 +107,7 @@ void PREFIX(generate_ptr_generic)(unsigned indirection, generate_func_t callback
     else
       (*callback)();
 }
+*/
 
 //===========================================================
 void PREFIX(merge_ptr_generic)(char**ppt, char** ppt_1, char** ppt_2, size_t es, unsigned indirection, merge_func_t callback) {

@@ -1,7 +1,13 @@
+#include <iostream>
+#include <cstdint>
+#include <cstdlib>
+#include <ctime>
+#include <iomanip>
 #include "ct-fuzz-instrument-self.h"
 
 using namespace llvm;
 typedef CTFuzzInstrumentUtils Utils;
+typedef CTFuzzOptions Opt;
 
 CallInst* getCallToReadInputsFunc(Function* mainF) {
   return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_read_inputs");
@@ -220,11 +226,87 @@ Function* getSpecFunction(Module& M) {
   llvm_unreachable("Unable to find spec function.");
 }
 
+void printByte(unsigned char b) {
+  char tmp[4];
+  sprintf(tmp, "\\x%02X", b);
+  std::cout << tmp;
+}
+
+void printInt(uint64_t v, unsigned size) {
+  unsigned char* p = (unsigned char*)(&v);
+  for (unsigned i = 0; i < size; ++i)
+    printByte(p[i]);
+}
+
+bool flipCoin() {
+  return std::rand() & 1U;
+}
+
+unsigned short generateLen(Type* ET) {
+  if (ET->isStructTy() || ET->isPointerTy())
+    return flipCoin()? 1 : 2;
+  else {
+    bool b1 = flipCoin();
+    bool b2 = flipCoin();
+    if (b1)
+      if (b2)
+        return 1;
+      else
+        return 2;
+    else
+      if (b2)
+        return 3;
+      else
+        return 4;
+  }
+}
+
+void CTFuzzInstrumentSelf::generateSeedForT(Type* T) {
+  if (!T->isPointerTy())
+    if (IntegerType* it = dyn_cast<IntegerType>(T))
+      printInt(42, it->getBitWidth() >> 3);
+    else if (ArrayType* at = dyn_cast<ArrayType>(T))
+      for (unsigned i = 0 ; i < at->getNumElements(); ++i)
+        generateSeedForT(at->getElementType());
+    else if (StructType* st = dyn_cast<StructType>(T))
+      for (unsigned i = 0 ; i < st->getNumElements(); ++i)
+        generateSeedForT(st->getElementType(i));
+    else
+      llvm_unreachable("doesn't support this type");
+  else {
+    PointerType* pt = cast<PointerType>(T);
+    Type* et = pt->getElementType();
+    unsigned short len = generateLen(et);
+    //errs() << len << "\n";
+    printInt(len, 2);
+    for (unsigned short i = 0; i < len; ++i)
+      generateSeedForT(et);
+  }
+}
+
+void CTFuzzInstrumentSelf::generateSeeds(Function* F) {
+  for (auto& arg: F->args())
+    generateSeedForT(arg.getType());
+}
+
 bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
-  Function* srcF = Utils::getFunction(M, CTFuzzOptions::EntryPoint);
+  Function* srcF = Utils::getFunction(M, Opt::EntryPoint);
   Function* specF = getSpecFunction(M);
   Function* mainF = Utils::getFunction(M, "__ct_fuzz_main");
   ri = new CTFuzzReadInputs(&M);
+
+  if (Opt::SeedNum) {
+    std::srand(time(NULL));
+    for (unsigned i = 0; i < Opt::SeedNum; ++i) {
+      auto s = std::rand();
+      std::srand(s);
+      generateSeeds(srcF);
+      std::srand(s);
+      generateSeeds(srcF);
+      std::cout << std::endl;
+    }
+    return true;
+  }
 
   mallocF = Utils::getFunction(M, "__ct_fuzz_malloc_wrapper");
 

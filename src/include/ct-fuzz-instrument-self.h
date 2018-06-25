@@ -42,6 +42,8 @@ class CTFuzzInstrumentSelf: public llvm::ModulePass {
     llvm::CallInst* checkInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* specF, const BoxList& boxes);
     llvm::CallInst* mergePtrInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxList& boxes, BoxList& ptrBoxes);
     llvm::CallInst* execInputFunc(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxList& boxes, const BoxList& ptrBoxes);
+    void generateSeeds(llvm::Function* F);
+    void generateSeedForT(llvm::Type* T);
     CTFuzzReadInputs* ri;
 };
 

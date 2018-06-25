@@ -6,5 +6,6 @@
 class CTFuzzOptions {
   public:
     static const llvm::cl::opt<std::string> EntryPoint;
+    static const llvm::cl::opt<unsigned> SeedNum;
 };
 #endif
