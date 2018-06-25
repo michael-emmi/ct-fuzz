@@ -67,7 +67,8 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
       for (unsigned i = 0; i < at->getNumElements(); ++i)
         IRB.CreateCall(getReadFunc(aet, M),
           {IRB.CreateGEP(Utils::getFirstArg(F),
-            {ConstantInt::get(IntegerType::get(C, 64), i)})});
+            {ConstantInt::get(IntegerType::get(C, 64), 0),
+            ConstantInt::get(IntegerType::get(C, 64), i)})});
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
         Type* set = st->getElementType(i);
@@ -95,56 +96,6 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
   return F;
 }
 
-Function* CTFuzzReadInputs::getGenerateFunc(Type* elemT, Module* M) {
-  Type* sizeT = Utils::getSecondArg(stdoutWF)->getType();
-  LLVMContext& C = M->getContext();
-  auto DL = M->getDataLayout();
-
-  std::string TN = getTypeName(elemT);
-  // already got function corresponding to this type
-  if (generatef_mappings.count(TN))
-    return generatef_mappings[TN];
-  std::string FN = "__ct_fuzz_generate_" + TN;
-  FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {}, false);
-  Function* F = Function::Create(FT, GlobalValue::InternalLinkage, FN, M);
-  BasicBlock* B = BasicBlock::Create(C, "", F);
-  IRBuilder<> IRB(B);
-
-  if (!elemT->isPointerTy()) {
-    if (IntegerType* it = dyn_cast<IntegerType>(elemT)) {
-      auto box = IRB.CreateAlloca(it);
-      IRB.CreateStore(ConstantInt::get(it, 42), box);
-      IRB.CreateCall(stdoutWF,
-        {IRB.CreateBitCast(box,
-          Utils::getFirstArg(stdinRF)->getType()),
-        Utils::getTypeSizeInSizeT(DL, it, sizeT)});
-    }
-    else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
-      Type* aet = at->getElementType();
-      for (unsigned i = 0; i < at->getNumElements(); ++i)
-        IRB.CreateCall(getGenerateFunc(aet, M), {});
-    } else if (StructType* st = dyn_cast<StructType>(elemT)) {
-      for (unsigned i = 0; i < st->getNumElements(); ++i) {
-        Type* set = st->getElementType(i);
-        IRB.CreateCall(getGenerateFunc(set, M), {});
-      }
-    } else
-      llvm_unreachable("doesn't support this type");
-  } else {
-    // pointer type, we should leverage generic write pointer function
-    Type* uet = getUltimateElemTy(elemT);
-    PointerType* pet = cast<PointerType>(elemT);
-    unsigned indirectionLevel = getIndirectionLevel(pet->getElementType());
-    IRB.CreateCall(genericPtrGenerateF,
-      {ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getGenerateFunc(uet, M), Utils::getLastArg(genericPtrGenerateF)->getType())});
-  }
-
-  IRB.CreateRetVoid();
-  generatef_mappings[TN] = F;
-  return F;
-}
-
 Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   PointerType* pt = PointerType::getUnqual(elemT);
@@ -167,12 +118,13 @@ Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
     } else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
       Type* aet = at->getElementType();
       for (unsigned i = 0; i < at->getNumElements(); ++i) {
-        auto idx = ConstantInt::get(IntegerType::get(C, 64), i);
+        auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
+        auto idx_2 = ConstantInt::get(IntegerType::get(C, 64), i);
         if (aet->isPointerTy())
           IRB.CreateCall(getMergeFunc(aet, M),
-              {IRB.CreateGEP(Utils::getFirstArg(F), {idx}),
-              IRB.CreateGEP(Utils::getSecondArg(F), {idx}),
-              IRB.CreateGEP(Utils::getLastArg(F), {idx})});
+              {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
+              IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2}),
+              IRB.CreateGEP(Utils::getLastArg(F), {idx_1, idx_2})});
       }
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
@@ -234,17 +186,18 @@ Function* CTFuzzReadInputs::getCopyFunc(Type* elemT, Module* M) {
     else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
       Type* aet = at->getElementType();
       for (unsigned i = 0; i < at->getNumElements(); ++i) {
-        auto idx = ConstantInt::get(IntegerType::get(C, 64), i);
+        auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
+        auto idx_2 = ConstantInt::get(IntegerType::get(C, 64), i);
         IRB.CreateCall(getCopyFunc(aet, M),
-          {IRB.CreateGEP(Utils::getFirstArg(F), {idx}),
-          IRB.CreateGEP(Utils::getSecondArg(F), {idx})});
+          {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
+          IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
       }
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
         Type* set = st->getElementType(i);
         auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 32), i);
-        IRB.CreateCall(getReadFunc(set, M),
+        IRB.CreateCall(getCopyFunc(set, M),
           {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
           IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
       }

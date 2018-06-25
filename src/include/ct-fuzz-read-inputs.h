@@ -23,19 +23,16 @@ class CTFuzzReadInputs {
       stdinRF = Utils::getFunction(*M, "__ct_fuzz_stdin_read");
       genericPtrReadF = Utils::getFunction(*M, "__ct_fuzz_read_ptr_generic");
       stdoutWF = Utils::getFunction(*M, "__ct_fuzz_stdout_write");
-      genericPtrGenerateF = Utils::getFunction(*M, "__ct_fuzz_generate_ptr_generic");
       genericPtrMergeF = Utils::getFunction(*M, "__ct_fuzz_merge_ptr_generic");
       genericPtrCopyF = Utils::getFunction(*M, "__ct_fuzz_deep_copy_ptr_generic");
       memcpyF = Utils::getFunction(*M, "__ct_fuzz_memcpy_wrapper");
     }
 
     llvm::Function* getReadFunc(llvm::Type* elemT, llvm::Module* M);
-    llvm::Function* getGenerateFunc(llvm::Type* elemT, llvm::Module* M);
     llvm::Function* getMergeFunc(llvm::Type* elemT, llvm::Module* M);
     llvm::Function* getCopyFunc(llvm::Type* elemT, llvm::Module* M);
   private:
     std::map<std::string, llvm::Function*> readf_mappings;
-    std::map<std::string, llvm::Function*> generatef_mappings;
     std::map<std::string, llvm::Function*> mergef_mappings;
     std::map<std::string, llvm::Function*> copyf_mappings;
     unsigned getIndirectionLevel(llvm::Type* T);
@@ -44,7 +41,6 @@ class CTFuzzReadInputs {
     llvm::Function* stdinRF;
     llvm::Function* stdoutWF;
     llvm::Function* genericPtrReadF;
-    llvm::Function* genericPtrGenerateF;
     llvm::Function* genericPtrMergeF;
     llvm::Function* genericPtrCopyF;
     llvm::Function* memcpyF;

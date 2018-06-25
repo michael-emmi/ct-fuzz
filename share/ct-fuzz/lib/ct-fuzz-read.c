@@ -116,6 +116,7 @@ void PREFIX(merge_ptr_generic)(char**ppt, char** ppt_1, char** ppt_2, size_t es,
   len_t max_len = PREFIX(max_len)(len_1, len_2);
   size_t rs = (indirection? sizeof(char*) : es);
   *ppt = malloc(rs*max_len);
+  PREFIX(set_arr_len)(*ppt, max_len);
   for (len_t i = 0; i < PREFIX(min_len)(len_1, len_2); ++i) {
     if (indirection)
       PREFIX(merge_ptr_generic)(*ppt + rs*i, *ppt_1 + rs*i, *ppt_2 + rs*i, es, indirection - 1, callback);
