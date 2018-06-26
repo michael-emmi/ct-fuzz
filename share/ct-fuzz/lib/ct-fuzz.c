@@ -55,6 +55,7 @@ void PREFIX(initialize)(void) {
   PREFIX(initialize_states)();
   PREFIX(dbg_init)();
   srand(time(0));
+  setbuf(stdout, NULL);
 }
 
 //void __ct_fuzz_switch(void) {
