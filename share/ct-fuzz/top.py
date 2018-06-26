@@ -13,6 +13,7 @@ def arguments():
     parser.add_argument('--entry-point', metavar='PROC', default=None, type=str, help='entry point function to start with')
     parser.add_argument('--opt-level', metavar='NUM', default=2, type=int, help='compiler optimization level')
     parser.add_argument('--compiler-options', metavar='OPTIONS', default='', type=str, help='compiler options')
+    parser.add_argument('-o', '--output-file', metavar='FILE', default=None, type=str, help='output binary')
 
     args = parser.parse_args()
     return args
@@ -85,6 +86,7 @@ def compile_bc_to_exec(args):
     clang_cmd = ' '.join(clang_cmd)
     clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(xxHash_dir())
     clang_cmd += ' ' + args.compiler_options
+    clang_cmd += ' -o {0}'.format(args.output_file)
     try_command(clang_cmd, shell=True)
 
 def make_test_binary(args):
