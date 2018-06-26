@@ -1,4 +1,4 @@
-// RUN: ../../bin/ct-fuzz %{s --entry-point=foo -o %t
+// RUN: ../../bin/ct-fuzz %s --entry-point=foo -o %t
 // RUN: %t < %s.hex > %t1
 // RUN: diff %t1 %s.output
 
