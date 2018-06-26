@@ -17,7 +17,7 @@ add_library(CTFuzzInstrumentSrc MODULE
   src/lib/ct-fuzz-naming.cpp
 )
 
-add_library(xxHash MODULE
+add_library(xxHash SHARED
   xxHash/xxhash.c)
 
 target_include_directories(CTFuzzInstrumentSrc PUBLIC
