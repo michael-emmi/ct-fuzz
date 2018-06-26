@@ -28,24 +28,6 @@ len_t PREFIX(get_arr_len)(const char* ptr) {
   assert(0 && "not a valid pointer to query array length");
 }
 
-len_t PREFIX(max_len)(len_t a, len_t b) {
-  //printf("size 1 is: %u\n", a);
-  //printf("size 2 is: %u\n", b);
-  if (a > b)
-    return a;
-  else
-    return b;
-}
-
-len_t PREFIX(min_len)(len_t a, len_t b) {
-  //printf("size 1 is: %u\n", a);
-  //printf("size 2 is: %u\n", b);
-  if (a > b)
-    return b;
-  else
-    return a;
-}
-
 void PREFIX(stdin_read)(void* buf, size_t size) {
   // not sure if the if condition is required.
   // it's added just to make sure nothing bad happens.
@@ -64,61 +46,34 @@ void PREFIX(read_ptr_generic)(char** ppt, size_t es, unsigned indirection, read_
   size_t rs = (indirection? sizeof(char*) : es);
   *ppt = malloc(rs*len);
   PREFIX(set_arr_len)(*ppt, len);
-  for (len_t i = 0; i < len; ++i)
+  for (len_t i = 0; i < len; ++i) {
+    char* s = *ppt + rs*i;
     if (indirection)
-      PREFIX(read_ptr_generic)(*ppt + rs*i, es, indirection - 1, callback);
+      PREFIX(read_ptr_generic)(s, es, indirection - 1, callback);
     else
-      (*callback)(*ppt + rs*i);
+      (*callback)(s);
+  }
 }
-
-//===========================================================
-/*
-#define ARR_LEN_MAX 8
-
-void PREFIX(stdout_write)(char* buf, size_t size) {
-  char tmp[64];
-  for (size_t i = 0; i < size; ++i)
-    sprintf(tmp+4*i, "\\x%02X", buf[i]);
-  write(1, tmp, size*4);
-}
-
-static len_t PREFIX(generate_array_len)(void) {
-  if (rand() & 1U)
-    return 1;
-  else
-    return (rand() % ARR_LEN_MAX) + 2;
-}
-
-void PREFIX(generate_ptr_generic)(unsigned indirection, generate_func_t callback) {
-  len_t len = PREFIX(generate_array_len)();
-  // write length first
-  PREFIX(stdout_write)(&len, sizeof(len_t));
-  for (len_t i = 0; i < len; ++i)
-    if (indirection)
-      PREFIX(generate_ptr_generic)(indirection - 1, callback);
-    else
-      (*callback)();
-}
-*/
 
 //===========================================================
 void PREFIX(merge_ptr_generic)(char**ppt, char** ppt_1, char** ppt_2, size_t es, unsigned indirection, merge_func_t callback) {
-  len_t len_1 = ppt_1? PREFIX(get_arr_len)(*ppt_1) : 0;
-  len_t len_2 = ppt_2? PREFIX(get_arr_len)(*ppt_2) : 0;
-  len_t max_len = PREFIX(max_len)(len_1, len_2);
+  len_t len_1 = PREFIX(get_arr_len)(*ppt_1);
+  len_t len_2 = PREFIX(get_arr_len)(*ppt_2);
+  len_t max_len = len_1 > len_2? len_1 : len_2;
   size_t rs = (indirection? sizeof(char*) : es);
   *ppt = malloc(rs*max_len);
   PREFIX(set_arr_len)(*ppt, max_len);
   for (len_t i = 0; i < max_len; ++i) {
+    char* s = *ppt + rs*i;
     char* p = *ppt_1 + rs*i;
     char* q = *ppt_2 + rs*i;
     // the longer one merges with itself
     char* p1 = i < len_1? p : q;
     char* p2 = i < len_2? q : p;
     if (indirection)
-      PREFIX(merge_ptr_generic)(*ppt + rs*i, p1, p2, es, indirection - 1, callback);
+      PREFIX(merge_ptr_generic)(s, p1, p2, es, indirection - 1, callback);
     else
-      (*callback)(*ppt + rs*i, p1, p2);
+      (*callback)(s, p1, p2);
   }
 }
 
@@ -127,9 +82,11 @@ void PREFIX(deep_copy_ptr_generic)(char** dest, char** src, size_t es, unsigned 
   len_t len = PREFIX(get_arr_len)(*src);
   size_t rs = (indirection? sizeof(char*) : es);
   for (len_t i = 0; i < len; ++i) {
+    char* nd = *dest + rs*i;
+    char* ns = *src + rs*i;
     if (indirection)
-      PREFIX(deep_copy_ptr_generic)(*dest + rs*i, *src + rs*i, es, indirection - 1, callback);
+      PREFIX(deep_copy_ptr_generic)(nd, ns, es, indirection - 1, callback);
     else
-      (*callback)(*dest + rs*i, *src + rs*i);
+      (*callback)(nd, ns);
   }
 }
