@@ -99,19 +99,24 @@ if(APPLE)
 endif(APPLE)
 
 INSTALL(TARGETS CTFuzzInstrumentSrc CTFuzzInstrumentSelf xxHash
-  # not sure if bin is a proper directory
-  LIBRARY DESTINATION bin
+  LIBRARY DESTINATION lib/ct-fuzz
 )
 
 INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/bin/ct-fuzz
   ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-clang-fast
   ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-clang-fast++
-  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-pass.so
-  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-rt.o
   PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
   GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
   DESTINATION bin
+)
+
+INSTALL(FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-pass.so
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-rt.o
+  PERMISSIONS OWNER_WRITE OWNER_READ
+  GROUP_READ WORLD_READ
+  DESTINATION lib/ct-fuzz
 )
 
 INSTALL(FILES

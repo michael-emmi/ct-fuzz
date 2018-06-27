@@ -31,13 +31,13 @@ def ct_fuzz_lib_dir():
     return os.path.join(ct_fuzz_root(), 'share', TOOL_NAME, 'lib')
 
 def ct_fuzz_self_dynamic_lib():
-    return os.path.join(ct_fuzz_root(), 'bin', 'libCTFuzzInstrumentSelf.so')
+    return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME, 'libCTFuzzInstrumentSelf.so')
 
 def afl_clang_fast_path():
     return os.path.join(ct_fuzz_root(), 'bin', 'afl-clang-fast')
 
-def xxHash_dir():
-    return os.path.join(ct_fuzz_root(), 'bin')
+def ct_fuzz_shared_lib_dir():
+    return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME)
 
 def get_file_name(f):
     return os.path.splitext(os.path.basename(f))[0]
@@ -46,10 +46,11 @@ def prep_and_clean_up(func):
     def do(args):
         os.environ["ENABLE_CT_FUZZ"] = 'true'
         os.environ["AFL_DONT_OPTIMIZE"] = 'true'
+        os.environ["AFL_PATH"] = ct_fuzz_shared_lib_dir()
         args.input_file_name = get_file_name(args.input_file)
         func(args)
         remove_temp_files()
-        return do
+    return do
 
 def compile_c_file(args, c_file_name):
     cmd = [afl_clang_fast_path(), '-O'+str(args.opt_level), '-c']
@@ -90,7 +91,7 @@ def compile_bc_to_exec(args):
     clang_cmd = [afl_clang_fast_path(), args.llc_out_file]
     clang_cmd += ['-L`jemalloc-config --libdir`', '-Wl,-rpath,`jemalloc-config --libdir`', '-ljemalloc', '`jemalloc-config --libs`']
     clang_cmd = ' '.join(clang_cmd)
-    clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(xxHash_dir())
+    clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(ct_fuzz_shared_lib_dir())
     clang_cmd += ' ' + args.compiler_options
     if args.output_file:
         clang_cmd += ' -o {0}'.format(args.output_file)
