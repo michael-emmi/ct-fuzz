@@ -8,17 +8,25 @@ import top
 
 temporary_files = []
 
-def temporary_file(prefix, extension, args):
+def make_file(prefix, extension, args):
+    if args.debug:
+        return prefix+extension
+    else:
+        return temporary_file(prefix, extension)
+
+def temporary_file(prefix, extension):
   f, name = tempfile.mkstemp(extension, prefix + '-', os.getcwd(), True)
   os.close(f)
-  if not args.debug:
-    temporary_files.append(name)
+  temporary_files.append(name)
   return name
 
-def remove_temp_files():
-  for f in temporary_files:
-    if os.path.isfile(f):
-      os.unlink(f)
+def remove_temp_files(func):
+    def go():
+        func()
+        for f in temporary_files:
+            if os.path.isfile(f):
+                os.unlink(f)
+    return go
 
 def timeout_killer(proc, timed_out):
   if not timed_out[0]:
@@ -26,13 +34,15 @@ def timeout_killer(proc, timed_out):
     os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
 
 def try_command(cmd, cwd=None, console=False, timeout=None, shell=False):
+  def print_cmd():
+    if args.debug:
+      print cmd if shell else " ".join(cmd)
   args = top.args
   output = ''
   proc = None
   timer = None
   try:
-    if args.debug:
-      print cmd if shell else " ".join(cmd)
+    print_cmd()
 
     proc = subprocess.Popen(cmd, cwd=cwd, preexec_fn=os.setsid,
       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=shell)
