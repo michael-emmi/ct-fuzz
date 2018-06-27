@@ -31,12 +31,10 @@ target_include_directories(xxHash PRIVATE
   xxHash
 )
 
-#target_link_libraries(CTFuzzInstrument
-#  ${LLVM_LIBRARY_DIRS}
-#)
 link_directories(${LLVM_LIBRARY_DIRS})
 
 find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config-3.9 llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")
+find_program(MAKE make)
 
 if (LLVM_CONFIG_EXECUTABLE STREQUAL "LLVM_CONFIG_EXECUTABLE-NOTFOUND")
   message(FATAL_ERROR "llvm-config could not be found!")
@@ -68,6 +66,16 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
+execute_process(
+  COMMAND ${MAKE}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/afl
+)
+
+execute_process(
+  COMMAND ${MAKE}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/afl/llvm_mode
+)
+
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).
@@ -78,22 +86,43 @@ execute_process(
 #set_target_properties(ExtractPass PROPERTIES
 #    COMPILE_FLAGS "-fno-rtti"
 #)
-set_target_properties(CTFuzzInstrumentSrc PROPERTIES
-    COMPILE_FLAGS "-fno-rtti"
-)
-set_target_properties(CTFuzzInstrumentSelf PROPERTIES
-    COMPILE_FLAGS "-fno-rtti"
+set_target_properties(CTFuzzInstrumentSrc CTFuzzInstrumentSelf
+  PROPERTIES COMPILE_FLAGS "-fno-rtti"
 )
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)
-    set_target_properties(CTFuzzInstrumentSrc PROPERTIES
-        LINK_FLAGS "-undefined dynamic_lookup"
-    )
-    set_target_properties(CTFuzzInstrumentSelf PROPERTIES
-        LINK_FLAGS "-undefined dynamic_lookup"
+  set_target_properties(CTFuzzInstrumentSrc CTFuzzInstrumentSelf
+      PROPERTIES LINK_FLAGS "-undefined dynamic_lookup"
     )
 endif(APPLE)
 
-#target_link_libraries(CTFuzzInstrument ${LLVM_LIBS} ${LLVM_SYSTEM_LIBS} ${LLVM_LDFLAGS})
+INSTALL(TARGETS CTFuzzInstrumentSrc CTFuzzInstrumentSelf xxHash
+  # not sure if bin is a proper directory
+  LIBRARY DESTINATION bin
+)
+
+INSTALL(FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/bin/ct-fuzz
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-clang-fast
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-clang-fast++
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-pass.so
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-rt.o
+  PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+  GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+  DESTINATION bin
+)
+
+INSTALL(FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/xxHash/xxhash.h
+  PERMISSIONS OWNER_WRITE OWNER_READ
+  GROUP_READ WORLD_READ
+  DESTINATION share/xxHash/include
+)
+
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/share/ct-fuzz
+  DESTINATION share
+  USE_SOURCE_PERMISSIONS
+  FILES_MATCHING PATTERN "*.py" PATTERN "*.h" PATTERN "*.c"
+)

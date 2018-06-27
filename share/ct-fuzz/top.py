@@ -25,19 +25,31 @@ def ct_fuzz_include_dir():
     return os.path.join(ct_fuzz_root(), 'share', TOOL_NAME, 'include')
 
 def xxHash_include_dir():
-    return os.path.join(ct_fuzz_root(), 'xxHash')
+    return os.path.join(ct_fuzz_root(), 'share', 'xxHash', 'include')
 
 def ct_fuzz_lib_dir():
     return os.path.join(ct_fuzz_root(), 'share', TOOL_NAME, 'lib')
 
 def ct_fuzz_self_dynamic_lib():
-    return os.path.join(ct_fuzz_root(), 'build', 'libCTFuzzInstrumentSelf.so')
+    return os.path.join(ct_fuzz_root(), 'bin', 'libCTFuzzInstrumentSelf.so')
 
 def afl_clang_fast_path():
-    return os.path.join(ct_fuzz_root(), 'afl-2.52b', 'afl-clang-fast')
+    return os.path.join(ct_fuzz_root(), 'bin', 'afl-clang-fast')
 
 def xxHash_dir():
-    return os.path.join(ct_fuzz_root(), 'build')
+    return os.path.join(ct_fuzz_root(), 'bin')
+
+def get_file_name(f):
+    return os.path.splitext(os.path.basename(f))[0]
+
+def prep_and_clean_up(func):
+    def do(args):
+        os.environ["ENABLE_CT_FUZZ"] = 'true'
+        os.environ["AFL_DONT_OPTIMIZE"] = 'true'
+        args.input_file_name = get_file_name(args.input_file)
+        func(args)
+        remove_temp_files()
+        return do
 
 def compile_c_file(args, c_file_name):
     cmd = [afl_clang_fast_path(), '-O'+str(args.opt_level), '-c']
@@ -84,6 +96,7 @@ def compile_bc_to_exec(args):
         clang_cmd += ' -o {0}'.format(args.output_file)
     try_command(clang_cmd, shell=True)
 
+@prep_and_clean_up
 def make_test_binary(args):
     input_bc_file = compile_c_file(args, args.input_file)
     lib_bc_files = build_libs(args)
@@ -91,12 +104,7 @@ def make_test_binary(args):
     run_pass(args)
     compile_bc_to_exec(args)
 
-def get_file_name(f):
-    return os.path.splitext(os.path.basename(f))[0]
-
-@remove_temp_files
 def main():
     global args
     args = arguments()
-    args.input_file_name = get_file_name(args.input_file)
     make_test_binary(args)

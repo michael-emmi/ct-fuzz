@@ -20,13 +20,10 @@ def temporary_file(prefix, extension):
   temporary_files.append(name)
   return name
 
-def remove_temp_files(func):
-    def go():
-        func()
-        for f in temporary_files:
-            if os.path.isfile(f):
-                os.unlink(f)
-    return go
+def remove_temp_files():
+  for f in temporary_files:
+    if os.path.isfile(f):
+      os.unlink(f)
 
 def timeout_killer(proc, timed_out):
   if not timed_out[0]:
