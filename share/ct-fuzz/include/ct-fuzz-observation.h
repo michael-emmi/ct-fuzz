@@ -2,17 +2,17 @@
 #define CT_FUZZ_OBSERVATION
 
 #include <unistd.h>
-#include <stdio.h>
-#include <signal.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <stdlib.h>
-#include "xxhash.h"
 #include "ct-fuzz-utils.h"
 #include "ct-fuzz-debug.h"
 
-#define STOP_SIGNAL 42
+#define IDX_T TYPE(idx)
+#define RUN_ID NS(run_idx)
 
+typedef unsigned char IDX_T;
+
+extern IDX_T RUN_ID;
+
+extern void NS(initialize_states)();
 extern void NS(update_monitor_by_cond)(bool cond);
 extern void NS(update_monitor_by_addr)(char* addr);
 extern void NS(check_observations)();

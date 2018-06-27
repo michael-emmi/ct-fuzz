@@ -1,4 +1,8 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "ct-fuzz-observation.h"
 #include "ct-fuzz-debug.h"
+
 static bool DEBUG_ON;
 
 void DEBUG_PRINT(char* type, char* value) { printf("[dbg] [%u] [%s, %s]\n", RUN_ID, type, value); }

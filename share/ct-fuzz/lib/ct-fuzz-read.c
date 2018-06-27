@@ -1,4 +1,13 @@
+#include <stddef.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <unistd.h>
 #include "ct-fuzz-read.h"
+
+#define ARR_INFO_SIZE 100
+#define ARR_INFO_T NS(arr_info)
+#define ARR_INFO_COUNTER NS(arr_info_counter)
+#define ARR_INFO_LIST NS(array_info_list)
 
 typedef struct {
   char* ptr;
@@ -30,7 +39,7 @@ void NS(stdin_read)(void* buf, size_t size) {
     read(0, buf, size);
 }
 
-len_t NS(read_array_len)(void) {
+static len_t NS(read_array_len)(void) {
   len_t ret;
   NS(stdin_read)(&ret, sizeof(len_t));
   return ret;

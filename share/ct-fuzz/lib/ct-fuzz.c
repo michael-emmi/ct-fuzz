@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/wait.h>
+#include <time.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-observation.h"
 #include "ct-fuzz-read.h"
