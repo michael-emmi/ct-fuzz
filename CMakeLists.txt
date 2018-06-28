@@ -4,17 +4,17 @@ find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 
 add_library(CTFuzzInstrumentSelf MODULE
-  src/lib/ct-fuzz-instrument-self.cpp
-  src/lib/ct-fuzz-naming.cpp
-  src/lib/ct-fuzz-options.cpp
-  src/lib/ct-fuzz-instrument-utils.cpp
-  src/lib/ct-fuzz-read-inputs.cpp
+  src/lib/instrument-self.cpp
+  src/lib/naming.cpp
+  src/lib/options.cpp
+  src/lib/instrument-utils.cpp
+  src/lib/read-inputs.cpp
 )
 
 add_library(CTFuzzInstrumentSrc MODULE
-  src/lib/ct-fuzz-instrument-src.cpp
-  src/lib/ct-fuzz-instrument-utils.cpp
-  src/lib/ct-fuzz-naming.cpp
+  src/lib/instrument-src.cpp
+  src/lib/instrument-utils.cpp
+  src/lib/naming.cpp
 )
 
 add_library(xxHash SHARED

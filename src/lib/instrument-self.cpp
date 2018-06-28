@@ -3,16 +3,18 @@
 #include <cstdlib>
 #include <ctime>
 #include <iomanip>
-#include "ct-fuzz-instrument-self.h"
-#include "ct-fuzz-instrument-utils.h"
-#include "ct-fuzz-options.h"
-
-using namespace llvm;
-typedef CTFuzzInstrumentUtils Utils;
-typedef CTFuzzOptions Opt;
+#include "instrument-self.h"
+#include "instrument-utils.h"
+#include "options.h"
 
 #define ERASE_TCI() TCI->eraseFromParent();
 
+using namespace llvm;
+
+typedef CTFuzz::InstrumentUtils Utils;
+typedef CTFuzz::Options Opt;
+
+namespace {
 CallInst* getCallToReadInputsFunc(Function* mainF) {
   return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_read_inputs");
 }
@@ -30,10 +32,13 @@ CallInst* getCallToMergeFunc(Function* mainF) {
 }
 
 std::vector<CallInst*> getPublicInCalls(Function* F) {
-  return Utils::getCallFromFunc(F, Naming::PUBLIC_IN_FUNC);
+  return Utils::getCallFromFunc(F, CTFuzz::Naming::PUBLIC_IN_FUNC);
+}
 }
 
-Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
+namespace CTFuzz {
+
+Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
   auto DL = M->getDataLayout();
   Type* sizeT = Utils::getFirstArg(mallocF)->getType();
@@ -82,7 +87,7 @@ Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   return newF;
 }
 
-void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Function* specF) {
+void InstrumentSelf::insertPublicInHandleFuncs(Function* specF) {
   auto cis = getPublicInCalls(specF);
   std::map<CallInst*, Function*> bindings;
 
@@ -129,7 +134,7 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
-void CTFuzzInstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, BoxList& boxes) {
+void InstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, BoxList& boxes) {
   IRBuilder<> IRB(TCI);
 
   // create two copies of input variables and read values into them
@@ -152,7 +157,7 @@ void CTFuzzInstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::ar
   ERASE_TCI()
 }
 
-void CTFuzzInstrumentSelf::checkInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, Function* specF) {
+void InstrumentSelf::checkInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, Function* specF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
@@ -168,7 +173,7 @@ void CTFuzzInstrumentSelf::checkInputs(CallInst* TCI, iterator_range<Function::a
   ERASE_TCI()
 }
 
-void CTFuzzInstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, BoxList& ptrBoxes) {
+void InstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, BoxList& ptrBoxes) {
   IRBuilder<> IRB(TCI);
   unsigned i = 0;
   for (auto& arg : args) {
@@ -187,7 +192,7 @@ void CTFuzzInstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function
 }
 
 // NOTE: we're in a forked process
-void CTFuzzInstrumentSelf::execInputFunc(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, const BoxList& ptrBoxes, Function* srcF) {
+void InstrumentSelf::execInputFunc(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, const BoxList& ptrBoxes, Function* srcF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
@@ -259,7 +264,7 @@ unsigned short generateLen(Type* ET) {
   }
 }
 
-void CTFuzzInstrumentSelf::generateSeedForT(Type* T) {
+void InstrumentSelf::generateSeedForT(Type* T) {
   if (!T->isPointerTy())
     if (IntegerType* it = dyn_cast<IntegerType>(T))
       printInt(42, it->getBitWidth() >> 3);
@@ -281,16 +286,16 @@ void CTFuzzInstrumentSelf::generateSeedForT(Type* T) {
   }
 }
 
-void CTFuzzInstrumentSelf::generateSeeds(Function* F) {
+void InstrumentSelf::generateSeeds(Function* F) {
   for (auto& arg: F->args())
     generateSeedForT(arg.getType());
 }
 
-bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
+bool InstrumentSelf::runOnModule(Module& M) {
   Function* srcF = Utils::getFunction(M, Opt::EntryPoint);
   Function* specF = getSpecFunction(M);
   Function* mainF = Utils::getFunction(M, "__ct_fuzz_main");
-  ri = new CTFuzzReadInputs(&M);
+  ri = new ReadInputs(&M);
   this->M = &M;
 
   if (Opt::SeedNum) {
@@ -330,8 +335,9 @@ bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
 }
 
 // Pass ID variable
-char CTFuzzInstrumentSelf::ID = 0;
+char InstrumentSelf::ID = 0;
 
 // Register the pass
-static RegisterPass<CTFuzzInstrumentSelf>
+static RegisterPass<InstrumentSelf>
 X("ct-fuzz-instrument-self", "Instrumentations for constant time fuzzer");
+}

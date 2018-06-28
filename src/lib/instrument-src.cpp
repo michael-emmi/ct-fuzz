@@ -5,39 +5,41 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "ct-fuzz-instrument-src.h"
-#include "ct-fuzz-naming.h"
+#include "instrument-src.h"
+#include "naming.h"
 
 using namespace llvm;
 
-void CTFuzzInstrumentSrc::visitLoadInst(LoadInst& li) {
+namespace CTFuzz {
+
+void InstrumentSrc::visitLoadInst(LoadInst& li) {
   IRBuilder<> IRB(&li);
   auto CI = IRB.CreateCall(updateOnAddrFunc,
     {IRB.CreateBitCast(li.getPointerOperand(), Type::getInt8PtrTy(li.getContext()))});
   CI->setDebugLoc(li.getParent()->begin()->getDebugLoc());
 }
 
-void CTFuzzInstrumentSrc::visitStoreInst(StoreInst& si) {
+void InstrumentSrc::visitStoreInst(StoreInst& si) {
   IRBuilder<> IRB(&si);
   auto CI = IRB.CreateCall(updateOnAddrFunc,
     {IRB.CreateBitCast(si.getPointerOperand(), Type::getInt8PtrTy(si.getContext()))});
   CI->setDebugLoc(si.getParent()->begin()->getDebugLoc());
 }
 
-void CTFuzzInstrumentSrc::visitBranchInst(BranchInst& bi) {
+void InstrumentSrc::visitBranchInst(BranchInst& bi) {
   if (bi.isConditional()) {
     IRBuilder<> IRB(&bi);
     IRB.CreateCall(updateOnCondFunc, {bi.getCondition()});
   }
 }
 
-void CTFuzzInstrumentSrc::visitSwitchInst(SwitchInst& swi) {
+void InstrumentSrc::visitSwitchInst(SwitchInst& swi) {
   llvm_unreachable("Not really expect to see switchinsts.");
 }
 
 // TODO: handle more terminitor instructions
 
-void CTFuzzInstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
+void InstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
   LLVMContext& C = M->getContext();
   auto getOrBuildUpdateFunc = [&M, &C](Type* argT, std::string name) -> Function* {
     FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {argT}, false) ;
@@ -47,7 +49,7 @@ void CTFuzzInstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
   updateOnAddrFunc = getOrBuildUpdateFunc(Type::getInt8PtrTy(C), "__ct_fuzz_update_monitor_by_addr");
 }
 
-bool CTFuzzInstrumentSrc::runOnFunction(Function& F) {
+bool InstrumentSrc::runOnFunction(Function& F) {
   getOrBuildUpdateFuncs(F.getParent());
   if (!F.hasName() ||
       (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
@@ -56,15 +58,12 @@ bool CTFuzzInstrumentSrc::runOnFunction(Function& F) {
 }
 
 // Pass ID variable
-char CTFuzzInstrumentSrc::ID = 0;
-
-// Register the pass
-//static RegisterPass<CTFuzzInstrumentSrc>
-//X("ct-fuzz-instrument-src", "Instrumentations of the input code for constant time fuzzer");
+char InstrumentSrc::ID = 0;
+}
 
 static void registerThisPass(const PassManagerBuilder &,
                            llvm::legacy::PassManagerBase &PM) {
-    PM.add(new CTFuzzInstrumentSrc());
+    PM.add(new CTFuzz::InstrumentSrc());
 }
 
 static RegisterStandardPasses

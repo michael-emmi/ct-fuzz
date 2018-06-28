@@ -3,27 +3,28 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
-#include "ct-fuzz-read-inputs.h"
-#include "ct-fuzz-instrument-utils.h"
+#include "read-inputs.h"
+#include "instrument-utils.h"
 
 using namespace llvm;
-typedef CTFuzzInstrumentUtils Utils;
 
-unsigned CTFuzzReadInputs::getIndirectionLevel(Type* T) {
+namespace CTFuzz {
+
+unsigned ReadInputs::getIndirectionLevel(Type* T) {
   if (!T->isPointerTy())
     return 0;
   else
     return 1 + getIndirectionLevel(cast<PointerType>(T)->getElementType());
 }
 
-Type* CTFuzzReadInputs::getUltimateElemTy(Type* T) {
+Type* ReadInputs::getUltimateElemTy(Type* T) {
   if (!T->isPointerTy())
     return T;
   else
     return getUltimateElemTy(cast<PointerType>(T)->getElementType());
 }
 
-std::string CTFuzzReadInputs::getTypeName(Type* T) {
+std::string ReadInputs::getTypeName(Type* T) {
   if (IntegerType* it = dyn_cast<IntegerType>(T))
     return "i" + std::to_string(it->getBitWidth());
   else if (ArrayType* at = dyn_cast<ArrayType>(T))
@@ -37,7 +38,7 @@ std::string CTFuzzReadInputs::getTypeName(Type* T) {
     llvm_unreachable("doesn't support this type");
 }
 
-Function* CTFuzzReadInputs::getReadFunc(Type* elemT) {
+Function* ReadInputs::getReadFunc(Type* elemT) {
   PointerType* pt = PointerType::getUnqual(elemT);
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   LLVMContext& C = M->getContext();
@@ -96,7 +97,7 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT) {
   return F;
 }
 
-Function* CTFuzzReadInputs::getMergeFunc(Type* elemT) {
+Function* ReadInputs::getMergeFunc(Type* elemT) {
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   PointerType* pt = PointerType::getUnqual(elemT);
   LLVMContext& C = M->getContext();
@@ -158,7 +159,7 @@ Function* CTFuzzReadInputs::getMergeFunc(Type* elemT) {
   return F;
 }
 
-Function* CTFuzzReadInputs::getCopyFunc(Type* elemT) {
+Function* ReadInputs::getCopyFunc(Type* elemT) {
   PointerType* pt = PointerType::getUnqual(elemT);
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   LLVMContext& C = M->getContext();
@@ -219,4 +220,5 @@ Function* CTFuzzReadInputs::getCopyFunc(Type* elemT) {
   IRB.CreateRetVoid();
   copyf_mappings[TN] = F;
   return F;
+}
 }

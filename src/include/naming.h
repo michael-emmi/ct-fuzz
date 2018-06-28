@@ -3,6 +3,7 @@
 
 #include <string>
 
+namespace CTFuzz {
 class Naming {
   public:
     static const std::string PUBLIC_IN_FUNC;
@@ -10,5 +11,6 @@ class Naming {
     static const std::string SPEC_FUNC_PREFIX;
     static bool isCTFuzzFunc(std::string name);
 };
+}
 
 #endif
