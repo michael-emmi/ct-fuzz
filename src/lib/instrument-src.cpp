@@ -6,7 +6,9 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "instrument-src.h"
-#include "naming.h"
+
+#define UPDATE_BY_COND_FUNC "__ct_fuzz_update_monitor_by_cond"
+#define UPDATE_BY_ADDR_FUNC "__ct_fuzz_update_monitor_by_addr"
 
 using namespace llvm;
 
@@ -45,14 +47,19 @@ void InstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
     FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {argT}, false) ;
     return cast<Function>(M->getOrInsertFunction(name, FT));
   };
-  updateOnCondFunc = getOrBuildUpdateFunc(Type::getInt1Ty(C), "__ct_fuzz_update_monitor_by_cond");
-  updateOnAddrFunc = getOrBuildUpdateFunc(Type::getInt8PtrTy(C), "__ct_fuzz_update_monitor_by_addr");
+  updateOnCondFunc = getOrBuildUpdateFunc(Type::getInt1Ty(C), UPDATE_BY_COND_FUNC);
+  updateOnAddrFunc = getOrBuildUpdateFunc(Type::getInt8PtrTy(C), UPDATE_BY_ADDR_FUNC);
 }
 
 bool InstrumentSrc::runOnFunction(Function& F) {
   getOrBuildUpdateFuncs(F.getParent());
+
+  auto isCTFuzzFunc = [](std::string name) -> bool {
+    return name.find("__ct_fuzz") == 0;
+  };
+
   if (!F.hasName() ||
-      (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
+      (!isCTFuzzFunc(F.getName()) && F.getName() != "main"))
     this->visit(F);
   return false;
 }

@@ -40,7 +40,7 @@ std::string ReadInputs::getTypeName(Type* T) {
 
 Function* ReadInputs::getReadFunc(Type* elemT) {
   PointerType* pt = PointerType::getUnqual(elemT);
-  Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
+  Type* sizeT = getSecondArg(stdinRF)->getType();
   LLVMContext& C = M->getContext();
   auto DL = M->getDataLayout();
 
@@ -59,22 +59,22 @@ Function* ReadInputs::getReadFunc(Type* elemT) {
     // get the name first
     if (IntegerType* it = dyn_cast<IntegerType>(elemT)) {
       IRB.CreateCall(stdinRF,
-        {IRB.CreateBitCast(Utils::getFirstArg(F),
-          Utils::getFirstArg(stdinRF)->getType()),
-        Utils::getTypeSizeInSizeT(DL, it, sizeT)});
+        {IRB.CreateBitCast(getFirstArg(F),
+          getFirstArg(stdinRF)->getType()),
+        getTypeSizeInSizeT(DL, it, sizeT)});
     }
     else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
       Type* aet = at->getElementType();
       for (unsigned i = 0; i < at->getNumElements(); ++i)
         IRB.CreateCall(getReadFunc(aet),
-          {IRB.CreateGEP(Utils::getFirstArg(F),
+          {IRB.CreateGEP(getFirstArg(F),
             {ConstantInt::get(IntegerType::get(C, 64), 0),
             ConstantInt::get(IntegerType::get(C, 64), i)})});
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
         Type* set = st->getElementType(i);
         IRB.CreateCall(getReadFunc(set),
-          {IRB.CreateGEP(Utils::getFirstArg(F),
+          {IRB.CreateGEP(getFirstArg(F),
             {ConstantInt::get(IntegerType::get(C, 64), 0),
             ConstantInt::get(IntegerType::get(C, 32), i)})});
       }
@@ -86,10 +86,10 @@ Function* ReadInputs::getReadFunc(Type* elemT) {
     PointerType* pet = cast<PointerType>(elemT);
     unsigned indirectionLevel = getIndirectionLevel(pet->getElementType());
     IRB.CreateCall(genericPtrReadF,
-      {IRB.CreateBitCast(Utils::getFirstArg(F), Utils::getFirstArg(genericPtrReadF)->getType()),
-      Utils::getTypeSizeInSizeT(DL, uet, sizeT),
+      {IRB.CreateBitCast(getFirstArg(F), getFirstArg(genericPtrReadF)->getType()),
+      getTypeSizeInSizeT(DL, uet, sizeT),
       ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getReadFunc(uet), Utils::getLastArg(genericPtrReadF)->getType())});
+      IRB.CreateBitCast(getReadFunc(uet), getLastArg(genericPtrReadF)->getType())});
   }
 
   IRB.CreateRetVoid();
@@ -98,7 +98,7 @@ Function* ReadInputs::getReadFunc(Type* elemT) {
 }
 
 Function* ReadInputs::getMergeFunc(Type* elemT) {
-  Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
+  Type* sizeT = getSecondArg(stdinRF)->getType();
   PointerType* pt = PointerType::getUnqual(elemT);
   LLVMContext& C = M->getContext();
   auto DL = M->getDataLayout();
@@ -123,9 +123,9 @@ Function* ReadInputs::getMergeFunc(Type* elemT) {
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 64), i);
         if (aet->isPointerTy())
           IRB.CreateCall(getMergeFunc(aet),
-              {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
-              IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2}),
-              IRB.CreateGEP(Utils::getLastArg(F), {idx_1, idx_2})});
+              {IRB.CreateGEP(getFirstArg(F), {idx_1, idx_2}),
+              IRB.CreateGEP(getSecondArg(F), {idx_1, idx_2}),
+              IRB.CreateGEP(getLastArg(F), {idx_1, idx_2})});
       }
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
@@ -134,9 +134,9 @@ Function* ReadInputs::getMergeFunc(Type* elemT) {
         Type* set = st->getElementType(i);
         if (set->isPointerTy())
           IRB.CreateCall(getMergeFunc(set),
-            {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
-            IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2}),
-            IRB.CreateGEP(Utils::getLastArg(F), {idx_1, idx_2})});
+            {IRB.CreateGEP(getFirstArg(F), {idx_1, idx_2}),
+            IRB.CreateGEP(getSecondArg(F), {idx_1, idx_2}),
+            IRB.CreateGEP(getLastArg(F), {idx_1, idx_2})});
       }
     } else
       llvm_unreachable("doesn't support this type");
@@ -146,12 +146,12 @@ Function* ReadInputs::getMergeFunc(Type* elemT) {
     PointerType* pet = cast<PointerType>(elemT);
     unsigned indirectionLevel = getIndirectionLevel(pet->getElementType());
     IRB.CreateCall(genericPtrMergeF,
-      {IRB.CreateBitCast(Utils::getFirstArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
-      IRB.CreateBitCast(Utils::getSecondArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
-      IRB.CreateBitCast(Utils::getLastArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
-      Utils::getTypeSizeInSizeT(DL, uet, sizeT),
+      {IRB.CreateBitCast(getFirstArg(F), getFirstArg(genericPtrMergeF)->getType()),
+      IRB.CreateBitCast(getSecondArg(F), getFirstArg(genericPtrMergeF)->getType()),
+      IRB.CreateBitCast(getLastArg(F), getFirstArg(genericPtrMergeF)->getType()),
+      getTypeSizeInSizeT(DL, uet, sizeT),
       ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getMergeFunc(uet), Utils::getLastArg(genericPtrMergeF)->getType())});
+      IRB.CreateBitCast(getMergeFunc(uet), getLastArg(genericPtrMergeF)->getType())});
   }
 
   IRB.CreateRetVoid();
@@ -161,7 +161,7 @@ Function* ReadInputs::getMergeFunc(Type* elemT) {
 
 Function* ReadInputs::getCopyFunc(Type* elemT) {
   PointerType* pt = PointerType::getUnqual(elemT);
-  Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
+  Type* sizeT = getSecondArg(stdinRF)->getType();
   LLVMContext& C = M->getContext();
   auto DL = M->getDataLayout();
 
@@ -178,11 +178,11 @@ Function* ReadInputs::getCopyFunc(Type* elemT) {
   if (!elemT->isPointerTy()) {
     if (IntegerType* it = dyn_cast<IntegerType>(elemT)) {
       IRB.CreateCall(memcpyF,
-        {IRB.CreateBitCast(Utils::getFirstArg(F),
-          Utils::getFirstArg(memcpyF)->getType()),
-        IRB.CreateBitCast(Utils::getSecondArg(F),
-          Utils::getSecondArg(memcpyF)->getType()),
-        Utils::getTypeSizeInSizeT(DL, it, sizeT)});
+        {IRB.CreateBitCast(getFirstArg(F),
+          getFirstArg(memcpyF)->getType()),
+        IRB.CreateBitCast(getSecondArg(F),
+          getSecondArg(memcpyF)->getType()),
+        getTypeSizeInSizeT(DL, it, sizeT)});
     }
     else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
       Type* aet = at->getElementType();
@@ -190,8 +190,8 @@ Function* ReadInputs::getCopyFunc(Type* elemT) {
         auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 64), i);
         IRB.CreateCall(getCopyFunc(aet),
-          {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
-          IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
+          {IRB.CreateGEP(getFirstArg(F), {idx_1, idx_2}),
+          IRB.CreateGEP(getSecondArg(F), {idx_1, idx_2})});
       }
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
@@ -199,8 +199,8 @@ Function* ReadInputs::getCopyFunc(Type* elemT) {
         auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 32), i);
         IRB.CreateCall(getCopyFunc(set),
-          {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
-          IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
+          {IRB.CreateGEP(getFirstArg(F), {idx_1, idx_2}),
+          IRB.CreateGEP(getSecondArg(F), {idx_1, idx_2})});
       }
     } else
       llvm_unreachable("doesn't support this type");
@@ -210,11 +210,11 @@ Function* ReadInputs::getCopyFunc(Type* elemT) {
     PointerType* pet = cast<PointerType>(elemT);
     unsigned indirectionLevel = getIndirectionLevel(pet->getElementType());
     IRB.CreateCall(genericPtrCopyF,
-      {IRB.CreateBitCast(Utils::getFirstArg(F), Utils::getFirstArg(genericPtrCopyF)->getType()),
-      IRB.CreateBitCast(Utils::getSecondArg(F), Utils::getSecondArg(genericPtrCopyF)->getType()),
-      Utils::getTypeSizeInSizeT(DL, uet, sizeT),
+      {IRB.CreateBitCast(getFirstArg(F), getFirstArg(genericPtrCopyF)->getType()),
+      IRB.CreateBitCast(getSecondArg(F), getSecondArg(genericPtrCopyF)->getType()),
+      getTypeSizeInSizeT(DL, uet, sizeT),
       ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getCopyFunc(uet), Utils::getLastArg(genericPtrCopyF)->getType())});
+      IRB.CreateBitCast(getCopyFunc(uet), getLastArg(genericPtrCopyF)->getType())});
   }
 
   IRB.CreateRetVoid();

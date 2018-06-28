@@ -11,28 +11,38 @@
 
 using namespace llvm;
 
-typedef CTFuzz::InstrumentUtils Utils;
 typedef CTFuzz::Options Opt;
 
 namespace {
+using namespace CTFuzz;
+
+const std::string PUBLIC_IN_FUNC = "__ct_fuzz_public_in";
+const std::string PUBLIC_IN_HANDLE_FUNC = "__ct_fuzz_handle_public_value";
+const std::string SPEC_FUNC_PREFIX = "__ct_fuzz_spec";
+const std::string READ_INPUT_FUNC = "__ct_fuzz_read_inputs";
+const std::string EXEC_FUNC = "__ct_fuzz_exec";
+const std::string MERGE_FUNC = "__ct_fuzz_merge_ptr_inputs";
+const std::string MALLOC_WRAPPER = "__ct_fuzz_malloc_wrapper";
+const std::string MAIN_FUNC = "__ct_fuzz_main";
+
 CallInst* getCallToReadInputsFunc(Function* mainF) {
-  return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_read_inputs");
+  return getCallToFuncOnce(mainF, READ_INPUT_FUNC);
 }
 
 CallInst* getCallToSpecFunc(Function* mainF) {
-  return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_spec");
+  return getCallToFuncOnce(mainF, SPEC_FUNC_PREFIX);
 }
 
 CallInst* getCallToExecFunc(Function* mainF) {
-  return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_exec");
+  return getCallToFuncOnce(mainF, EXEC_FUNC);
 }
 
 CallInst* getCallToMergeFunc(Function* mainF) {
-  return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_merge_ptr_inputs");
+  return getCallToFuncOnce(mainF, MERGE_FUNC);
 }
 
 std::vector<CallInst*> getPublicInCalls(Function* F) {
-  return Utils::getCallFromFunc(F, CTFuzz::Naming::PUBLIC_IN_FUNC);
+  return getCallFromFunc(F, PUBLIC_IN_FUNC);
 }
 }
 
@@ -41,18 +51,18 @@ namespace CTFuzz {
 Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
   auto DL = M->getDataLayout();
-  Type* sizeT = Utils::getFirstArg(
-    Utils::getFunction(*M, "__ct_fuzz_malloc_wrapper"))->getType();
+  Type* sizeT = getFirstArg(
+    getFunction(*M, MALLOC_WRAPPER))->getType();
   Type* T = CI->getArgOperand(0)->getType();
   std::vector<Type*> ts;
 
-  Function* CF = Utils::getFunction(*M, Naming::PUBLIC_IN_HANDLE_FUNC);
+  Function* CF = getFunction(*M, PUBLIC_IN_HANDLE_FUNC);
 
   for(unsigned i = 0; i < CI->getNumArgOperands(); ++i)
     ts.push_back(CI->getArgOperand(i)->getType());
 
   FunctionType* newFT = FunctionType::get(Type::getVoidTy(M->getContext()), ts, false);
-  std::string newFN = Naming::PUBLIC_IN_FUNC + "_" + std::to_string(counter);
+  std::string newFN = PUBLIC_IN_FUNC + "_" + std::to_string(counter);
   Function* newF = Function::Create(newFT, GlobalValue::InternalLinkage, newFN, M);
 
   BasicBlock* B = BasicBlock::Create(M->getContext(), "", newF);
@@ -68,16 +78,16 @@ Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
     // if the argument is not a pointer, create an allocated space,
     // store its value in, and pass the pointer to the allocated space
     P = IRB.CreateAlloca(T);
-    IRB.CreateStore(Utils::getFirstArg(newF), P);
+    IRB.CreateStore(getFirstArg(newF), P);
     // FIXME: I'm not sure if GetTypeSizeInBits is proper here
     uint64_t size = DL.getTypeSizeInBits(T) >> 3;
-    S = ConstantInt::get(Utils::getSecondArg(CF)->getType(), size);
+    S = ConstantInt::get(getSecondArg(CF)->getType(), size);
   } else {
-    P = Utils::getFirstArg(newF);
+    P = getFirstArg(newF);
     // note that the second argument for __ct_fuzz_public_in function is
     // the number of elements in this array
-    S = Utils::getByteSizeInSizeT(IRB, DL,
-      Utils::getSecondArg(newF), cast<PointerType>(T)->getElementType(), sizeT);
+    S = getByteSizeInSizeT(IRB, DL,
+      getSecondArg(newF), cast<PointerType>(T)->getElementType(), sizeT);
   }
 
   IRB.CreateCall(CF, {IRB.CreateBitCast(P, CF->arg_begin()->getType()), S});
@@ -114,7 +124,7 @@ void InstrumentSelf::insertPublicInHandleFuncs(Function* specF) {
   // clean up
   for (auto& binding: bindings)
     binding.first->eraseFromParent();
-  auto PF = M->getFunction(Naming::PUBLIC_IN_FUNC);
+  auto PF = M->getFunction(PUBLIC_IN_FUNC);
   if (PF)
     PF->eraseFromParent();
 }
@@ -226,7 +236,7 @@ void InstrumentSelf::execInputFunc(CallInst* TCI,
 
 Function* getSpecFunction(Module& M) {
   for (auto &F : M.functions()) {
-    if (F.hasName() && F.getName().find(Naming::SPEC_FUNC_PREFIX) == 0)
+    if (F.hasName() && F.getName().find(SPEC_FUNC_PREFIX) == 0)
       return &F;
   }
   llvm_unreachable("Unable to find spec function.");
@@ -295,9 +305,9 @@ void InstrumentSelf::generateSeeds(Function* F) {
 }
 
 bool InstrumentSelf::runOnModule(Module& M) {
-  Function* srcF = Utils::getFunction(M, Opt::EntryPoint);
+  Function* srcF = getFunction(M, Opt::EntryPoint);
   Function* specF = getSpecFunction(M);
-  Function* mainF = Utils::getFunction(M, "__ct_fuzz_main");
+  Function* mainF = getFunction(M, MAIN_FUNC);
   ReadInputs ri(&M);
   this->M = &M;
 

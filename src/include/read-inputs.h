@@ -8,19 +8,24 @@
 #include "llvm/IR/Module.h"
 #include "instrument-utils.h"
 
+#define STDIN_READ_FUNC "__ct_fuzz_stdin_read"
+#define READ_PTR_GENERIC "__ct_fuzz_read_ptr_generic"
+#define MERGE_PTR_GENERIC "__ct_fuzz_merge_ptr_generic"
+#define COPY_PTR_GENERIC "__ct_fuzz_deep_copy_ptr_generic"
+#define MEMCPY_WRAPPER "__ct_fuzz_memcpy_wrapper"
+
 namespace CTFuzz {
 
 using namespace llvm;
-typedef InstrumentUtils Utils;
 
 class ReadInputs {
   public:
     ReadInputs(Module* M) : M(M) {
-      stdinRF = Utils::getFunction(*M, "__ct_fuzz_stdin_read");
-      genericPtrReadF = Utils::getFunction(*M, "__ct_fuzz_read_ptr_generic");
-      genericPtrMergeF = Utils::getFunction(*M, "__ct_fuzz_merge_ptr_generic");
-      genericPtrCopyF = Utils::getFunction(*M, "__ct_fuzz_deep_copy_ptr_generic");
-      memcpyF = Utils::getFunction(*M, "__ct_fuzz_memcpy_wrapper");
+      stdinRF = getFunction(*M, STDIN_READ_FUNC);
+      genericPtrReadF = getFunction(*M, READ_PTR_GENERIC);
+      genericPtrMergeF = getFunction(*M, MERGE_PTR_GENERIC);
+      genericPtrCopyF = getFunction(*M, COPY_PTR_GENERIC);
+      memcpyF = getFunction(*M, MEMCPY_WRAPPER);
     }
 
     Function* getReadFunc(Type* elemT);

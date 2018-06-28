@@ -6,7 +6,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
-#include "naming.h"
 #include "read-inputs.h"
 
 #include <vector>
