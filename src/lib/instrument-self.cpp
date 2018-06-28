@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <iomanip>
+#include "llvm/Support/raw_ostream.h"
 #include "instrument-self.h"
 #include "instrument-utils.h"
 #include "options.h"
@@ -125,11 +126,9 @@ void InstrumentSelf::insertPublicInHandleFuncs(Module& M) {
   for (auto& binding: bindings)
     binding.first->eraseFromParent();
 
-  /*
-  auto PF = M->getFunction(PUBLIC_IN_FUNC);
+  auto PF = M.getFunction(PUBLIC_IN_FUNC);
   if (PF)
     PF->eraseFromParent();
-  */
 }
 
 inline AllocaInst* createArray(IRBuilder<>& IRB, Type* T) {

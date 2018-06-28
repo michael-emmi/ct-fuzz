@@ -1,6 +1,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "instrument-utils.h"
 #include <vector>
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -31,11 +32,15 @@ std::vector<CallInst*> getCallToFunc(Function* F) {
   if (!F)
     return cis;
   std::function<void(Value*)> addCallToF = [&cis, &addCallToF](Value* V) -> void {
-    for (auto U: V->users())
+    for (auto U: V->users()) {
       if (CallInst* ci = dyn_cast<CallInst>(U))
         cis.push_back(ci);
-      else if (BitCastInst* bi = dyn_cast<BitCastInst>(U))
-        addCallToF(bi);
+      else if (isa<BitCastInst>(U))
+        addCallToF(U);
+      else if (auto ce = dyn_cast<ConstantExpr>(U))
+        if (isa<BitCastInst>(ce->getAsInstruction()))
+          addCallToF(U);
+    }
   };
   addCallToF(F);
   return cis;
