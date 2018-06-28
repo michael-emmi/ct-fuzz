@@ -24,7 +24,6 @@
 #include <map>
 
 typedef unsigned char idx_t;
-//typedef std::pair<llvm::AllocaInst*, llvm::AllocaInst*> Boxes;
 typedef std::vector<llvm::AllocaInst*> BoxList;
 
 class CTFuzzInstrumentSelf: public llvm::ModulePass {
@@ -34,14 +33,14 @@ class CTFuzzInstrumentSelf: public llvm::ModulePass {
     virtual bool runOnModule(llvm::Module& M);
 
   private:
+    llvm::Module* M;
     llvm::Function* mallocF;
-    void updateMonitors(llvm::Module& M);
-    llvm::Function* buildPublicInHandleFunc(llvm::Module* M, llvm::CallInst* CI);
-    void insertPublicInHandleFuncs(llvm::Module& M, llvm::Function* specF);
-    llvm::CallInst* readInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, BoxList& boxes);
-    llvm::CallInst* checkInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* specF, const BoxList& boxes);
-    llvm::CallInst* mergePtrInputs(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxList& boxes, BoxList& ptrBoxes);
-    llvm::CallInst* execInputFunc(llvm::Module& M, llvm::Function* mainF, llvm::Function* srcF, const BoxList& boxes, const BoxList& ptrBoxes);
+    llvm::Function* buildPublicInHandleFunc(llvm::CallInst* CI);
+    void insertPublicInHandleFuncs(llvm::Function* specF);
+    void readInputs(llvm::CallInst* TCI, llvm::iterator_range<llvm::Function::arg_iterator>& args, BoxList& boxes);
+    void checkInputs(llvm::CallInst* TCI, llvm::iterator_range<llvm::Function::arg_iterator>& args, const BoxList& boxes, llvm::Function* specF);
+    void mergePtrInputs(llvm::CallInst* TCI, llvm::iterator_range<llvm::Function::arg_iterator>& args, const BoxList& boxes, BoxList& ptrBoxes);
+    void execInputFunc(llvm::CallInst* TCI, llvm::iterator_range<llvm::Function::arg_iterator>& args, const BoxList& boxes, const BoxList& ptrBoxes, llvm::Function* srcF);
     void generateSeeds(llvm::Function* F);
     void generateSeedForT(llvm::Type* T);
     CTFuzzReadInputs* ri;

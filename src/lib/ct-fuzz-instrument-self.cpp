@@ -9,6 +9,8 @@ using namespace llvm;
 typedef CTFuzzInstrumentUtils Utils;
 typedef CTFuzzOptions Opt;
 
+#define ERASE_TCI() TCI->eraseFromParent();
+
 CallInst* getCallToReadInputsFunc(Function* mainF) {
   return Utils::getCallToFuncOnce(mainF, "__ct_fuzz_read_inputs");
 }
@@ -29,7 +31,7 @@ std::vector<CallInst*> getPublicInCalls(Function* F) {
   return Utils::getCallFromFunc(F, Naming::PUBLIC_IN_FUNC);
 }
 
-Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(Module* M, CallInst* CI) {
+Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
   auto DL = M->getDataLayout();
   Type* sizeT = Utils::getFirstArg(mallocF)->getType();
@@ -78,7 +80,7 @@ Function* CTFuzzInstrumentSelf::buildPublicInHandleFunc(Module* M, CallInst* CI)
   return newF;
 }
 
-void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Module& M, Function* specF) {
+void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Function* specF) {
   auto cis = getPublicInCalls(specF);
   std::map<CallInst*, Function*> bindings;
 
@@ -86,7 +88,7 @@ void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Module& M, Function* specF)
   // which could be implemented in a per-type way
   // for the simplicity of the implementations, I don't do it
   for (auto ci : cis) {
-    auto F = buildPublicInHandleFunc(&M, ci);
+    auto F = buildPublicInHandleFunc(ci);
     bindings[ci] = F;
   }
 
@@ -104,7 +106,7 @@ void CTFuzzInstrumentSelf::insertPublicInHandleFuncs(Module& M, Function* specF)
   // clean up
   for (auto& binding: bindings)
     binding.first->eraseFromParent();
-  auto PF = M.getFunction(Naming::PUBLIC_IN_FUNC);
+  auto PF = M->getFunction(Naming::PUBLIC_IN_FUNC);
   if (PF)
     PF->eraseFromParent();
 }
@@ -125,97 +127,91 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
-CallInst* CTFuzzInstrumentSelf::readInputs(Module& M, Function* mainF, Function* srcF, BoxList& boxes) {
-  CallInst* TCI = getCallToReadInputsFunc(mainF);
+void CTFuzzInstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, BoxList& boxes) {
   IRBuilder<> IRB(TCI);
 
   // create two copies of input variables and read values into them
-  for (auto& arg : srcF->args())
+  for (auto& arg : args)
     boxes.push_back(createArray(IRB, arg.getType()));
 
   // encoding of pointer arguments
   // the first two bytes are element length (*not byte size*)
   // then read (element size * element length) bytes
-  auto GI = [&IRB, &M, &srcF, &boxes, this](idx_t idx) -> void {
+  auto GI = [&IRB, &args, &boxes, this](idx_t idx) -> void {
     unsigned i = 0;
-    for (auto& arg : srcF->args()) {
+    for (auto& arg : args) {
       Type* T = arg.getType();
-      IRB.CreateCall(ri->getReadFunc(T, &M), {getElement(IRB, boxes[i], idx)});
+      IRB.CreateCall(ri->getReadFunc(T), {getElement(IRB, boxes[i], idx)});
       ++i;
     }
   };
 
   GI(0); GI(1);
-
-  return TCI;
+  ERASE_TCI()
 }
 
-CallInst* CTFuzzInstrumentSelf::checkInputs(Module& M, Function* mainF, Function* specF, const BoxList& boxes) {
-  CallInst* TCI = getCallToSpecFunc(mainF);
+void CTFuzzInstrumentSelf::checkInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, Function* specF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
   unsigned i = 0;
-  std::vector<Value*> args;
+  std::vector<Value*> argVs;
 
-  for (auto& arg : specF->args()) {
-    args.push_back(IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
+  for (auto& arg : args) {
+    argVs.push_back(IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
     ++i;
   }
 
-  IRB.CreateCall(specF, args);
-  return TCI;
+  IRB.CreateCall(specF, argVs);
+  ERASE_TCI()
 }
 
-CallInst* CTFuzzInstrumentSelf::mergePtrInputs(Module& M, Function* mainF, Function* srcF, const BoxList& boxes, BoxList& ptrBoxes) {
-  CallInst* TCI = getCallToMergeFunc(mainF);
+void CTFuzzInstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, BoxList& ptrBoxes) {
   IRBuilder<> IRB(TCI);
   unsigned i = 0;
-  for (auto& arg : srcF->args()) {
+  for (auto& arg : args) {
     Type* T = arg.getType();
     if (T->isPointerTy()) {
       AllocaInst* AI = IRB.CreateAlloca(T);
       ptrBoxes.push_back(AI);
-      IRB.CreateCall(ri->getMergeFunc(T, &M),
+      IRB.CreateCall(ri->getMergeFunc(T),
         {AI,
         getElement(IRB, boxes[i], (idx_t)0),
         getElement(IRB, boxes[i], (idx_t)1)});
     }
     ++i;
   }
-  return TCI;
+  ERASE_TCI()
 }
 
 // NOTE: we're in a forked process
-CallInst* CTFuzzInstrumentSelf::execInputFunc(Module& M, Function* mainF, Function* srcF, const BoxList& boxes, const BoxList& ptrBoxes) {
-  CallInst* TCI = getCallToExecFunc(mainF);
+void CTFuzzInstrumentSelf::execInputFunc(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, const BoxList& ptrBoxes, Function* srcF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
-  std::vector<Value*> args;
+  std::vector<Value*> argVs;
 
   unsigned i = 0;
   unsigned ptr_i = 0;
-  for (auto& arg : srcF->args()) {
+  for (auto& arg : args) {
     Type* T = arg.getType();
     auto valueP = boxes[i];
     if (!T->isPointerTy())
-      args.push_back(IRB.CreateLoad(getElement(IRB, valueP, idx)));
+      argVs.push_back(IRB.CreateLoad(getElement(IRB, valueP, idx)));
     else {
       // deep copy
       auto PP = ptrBoxes[ptr_i];
-      IRB.CreateCall(ri->getCopyFunc(T, &M),
+      IRB.CreateCall(ri->getCopyFunc(T),
         {PP, getElement(IRB, valueP, idx)});
-      args.push_back(IRB.CreateLoad(PP));
+      argVs.push_back(IRB.CreateLoad(PP));
       ++ptr_i;
     }
     ++i;
   }
 
   // call the function
-  IRB.CreateCall(srcF, args);
-
-  return TCI;
+  IRB.CreateCall(srcF, argVs);
+  ERASE_TCI()
 }
 
 Function* getSpecFunction(Module& M) {
@@ -277,7 +273,6 @@ void CTFuzzInstrumentSelf::generateSeedForT(Type* T) {
     PointerType* pt = cast<PointerType>(T);
     Type* et = pt->getElementType();
     unsigned short len = generateLen(et);
-    //errs() << len << "\n";
     printInt(len, 2);
     for (unsigned short i = 0; i < len; ++i)
       generateSeedForT(et);
@@ -294,6 +289,7 @@ bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
   Function* specF = getSpecFunction(M);
   Function* mainF = Utils::getFunction(M, "__ct_fuzz_main");
   ri = new CTFuzzReadInputs(&M);
+  this->M = &M;
 
   if (Opt::SeedNum) {
     std::srand(time(NULL));
@@ -313,7 +309,7 @@ bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
   // this function instruments __ct_fuzz_public_in calls such that
   // the value passed to the these calls are either recorded or checked
   // via calling public_value_handle functions
-  insertPublicInHandleFuncs(M, specF);
+  insertPublicInHandleFuncs(specF);
 
   // boxes is a pair of pointers
   // the first element is a pointer to the function argument
@@ -321,16 +317,13 @@ bool CTFuzzInstrumentSelf::runOnModule(Module& M) {
   // if the argument is not a pointer, then the second element is nullptr
   BoxList boxes;
   BoxList ptrBoxes;
-  auto I1 = readInputs(M, mainF, srcF, boxes);
-  auto I2 = checkInputs(M, mainF, specF, boxes);
-  auto I3 = mergePtrInputs(M, mainF, srcF, boxes, ptrBoxes);
-  auto I4 = execInputFunc(M, mainF, srcF, boxes, ptrBoxes);
+  auto args = srcF->args();
+  readInputs(getCallToReadInputsFunc(mainF), args, boxes);
+  checkInputs(getCallToSpecFunc(mainF), args, boxes, specF);
+  mergePtrInputs(getCallToMergeFunc(mainF), args, boxes, ptrBoxes);
+  execInputFunc(getCallToExecFunc(mainF), args, boxes, ptrBoxes, srcF);
 
-  I1->eraseFromParent();
-  I2->eraseFromParent();
-  I3->eraseFromParent();
-  I4->eraseFromParent();
-
+  delete ri;
   return false;
 }
 

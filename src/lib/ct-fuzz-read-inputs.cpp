@@ -37,7 +37,7 @@ std::string CTFuzzReadInputs::getTypeName(Type* T) {
     llvm_unreachable("doesn't support this type");
 }
 
-Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
+Function* CTFuzzReadInputs::getReadFunc(Type* elemT) {
   PointerType* pt = PointerType::getUnqual(elemT);
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   LLVMContext& C = M->getContext();
@@ -65,14 +65,14 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
     else if (ArrayType* at = dyn_cast<ArrayType>(elemT)) {
       Type* aet = at->getElementType();
       for (unsigned i = 0; i < at->getNumElements(); ++i)
-        IRB.CreateCall(getReadFunc(aet, M),
+        IRB.CreateCall(getReadFunc(aet),
           {IRB.CreateGEP(Utils::getFirstArg(F),
             {ConstantInt::get(IntegerType::get(C, 64), 0),
             ConstantInt::get(IntegerType::get(C, 64), i)})});
     } else if (StructType* st = dyn_cast<StructType>(elemT)) {
       for (unsigned i = 0; i < st->getNumElements(); ++i) {
         Type* set = st->getElementType(i);
-        IRB.CreateCall(getReadFunc(set, M),
+        IRB.CreateCall(getReadFunc(set),
           {IRB.CreateGEP(Utils::getFirstArg(F),
             {ConstantInt::get(IntegerType::get(C, 64), 0),
             ConstantInt::get(IntegerType::get(C, 32), i)})});
@@ -88,7 +88,7 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
       {IRB.CreateBitCast(Utils::getFirstArg(F), Utils::getFirstArg(genericPtrReadF)->getType()),
       Utils::getTypeSizeInSizeT(DL, uet, sizeT),
       ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getReadFunc(uet, M), Utils::getLastArg(genericPtrReadF)->getType())});
+      IRB.CreateBitCast(getReadFunc(uet), Utils::getLastArg(genericPtrReadF)->getType())});
   }
 
   IRB.CreateRetVoid();
@@ -96,7 +96,7 @@ Function* CTFuzzReadInputs::getReadFunc(Type* elemT, Module* M) {
   return F;
 }
 
-Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
+Function* CTFuzzReadInputs::getMergeFunc(Type* elemT) {
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   PointerType* pt = PointerType::getUnqual(elemT);
   LLVMContext& C = M->getContext();
@@ -121,7 +121,7 @@ Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
         auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 64), i);
         if (aet->isPointerTy())
-          IRB.CreateCall(getMergeFunc(aet, M),
+          IRB.CreateCall(getMergeFunc(aet),
               {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
               IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2}),
               IRB.CreateGEP(Utils::getLastArg(F), {idx_1, idx_2})});
@@ -132,7 +132,7 @@ Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 32), i);
         Type* set = st->getElementType(i);
         if (set->isPointerTy())
-          IRB.CreateCall(getMergeFunc(set, M),
+          IRB.CreateCall(getMergeFunc(set),
             {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
             IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2}),
             IRB.CreateGEP(Utils::getLastArg(F), {idx_1, idx_2})});
@@ -150,7 +150,7 @@ Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
       IRB.CreateBitCast(Utils::getLastArg(F), Utils::getFirstArg(genericPtrMergeF)->getType()),
       Utils::getTypeSizeInSizeT(DL, uet, sizeT),
       ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getMergeFunc(uet, M), Utils::getLastArg(genericPtrMergeF)->getType())});
+      IRB.CreateBitCast(getMergeFunc(uet), Utils::getLastArg(genericPtrMergeF)->getType())});
   }
 
   IRB.CreateRetVoid();
@@ -158,7 +158,7 @@ Function* CTFuzzReadInputs::getMergeFunc(Type* elemT, Module* M) {
   return F;
 }
 
-Function* CTFuzzReadInputs::getCopyFunc(Type* elemT, Module* M) {
+Function* CTFuzzReadInputs::getCopyFunc(Type* elemT) {
   PointerType* pt = PointerType::getUnqual(elemT);
   Type* sizeT = Utils::getSecondArg(stdinRF)->getType();
   LLVMContext& C = M->getContext();
@@ -188,7 +188,7 @@ Function* CTFuzzReadInputs::getCopyFunc(Type* elemT, Module* M) {
       for (unsigned i = 0; i < at->getNumElements(); ++i) {
         auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 64), i);
-        IRB.CreateCall(getCopyFunc(aet, M),
+        IRB.CreateCall(getCopyFunc(aet),
           {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
           IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
       }
@@ -197,7 +197,7 @@ Function* CTFuzzReadInputs::getCopyFunc(Type* elemT, Module* M) {
         Type* set = st->getElementType(i);
         auto idx_1 = ConstantInt::get(IntegerType::get(C, 64), 0);
         auto idx_2 = ConstantInt::get(IntegerType::get(C, 32), i);
-        IRB.CreateCall(getCopyFunc(set, M),
+        IRB.CreateCall(getCopyFunc(set),
           {IRB.CreateGEP(Utils::getFirstArg(F), {idx_1, idx_2}),
           IRB.CreateGEP(Utils::getSecondArg(F), {idx_1, idx_2})});
       }
@@ -213,7 +213,7 @@ Function* CTFuzzReadInputs::getCopyFunc(Type* elemT, Module* M) {
       IRB.CreateBitCast(Utils::getSecondArg(F), Utils::getSecondArg(genericPtrCopyF)->getType()),
       Utils::getTypeSizeInSizeT(DL, uet, sizeT),
       ConstantInt::get(IntegerType::get(C, 32), indirectionLevel),
-      IRB.CreateBitCast(getCopyFunc(uet, M), Utils::getLastArg(genericPtrCopyF)->getType())});
+      IRB.CreateBitCast(getCopyFunc(uet), Utils::getLastArg(genericPtrCopyF)->getType())});
   }
 
   IRB.CreateRetVoid();
