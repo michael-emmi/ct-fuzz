@@ -24,9 +24,8 @@ class InstrumentSelf: public ModulePass {
     virtual bool runOnModule(Module& M);
 
   private:
-    Module* M;
     Function* buildPublicInHandleFunc(CallInst* CI);
-    void insertPublicInHandleFuncs(Function* specF);
+    void insertPublicInHandleFuncs(Module& M);
     void readInputs(CallInst* TCI,
       argsT& args, BoxList& boxes, ReadInputs& ri);
     void checkInputs(CallInst* TCI,

@@ -26,22 +26,23 @@ Value* getLastArg(Function* F) {
   return &*(--I);
 }
 
-std::vector<CallInst*> getCallFromFunc(Function* F, std::string FN) {
+std::vector<CallInst*> getCallToFunc(Function* F) {
   std::vector<CallInst*> cis;
-  for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
-    if (CallInst* ci = dyn_cast<CallInst>(&*I)) {
-      Function* f = ci->getCalledFunction();
-      if (!f)
-        f = dyn_cast<Function>(ci->getCalledValue()->stripPointerCasts());
-      if (f && f->hasName() && f->getName().str() == FN)
-          cis.push_back(ci);
-    }
-  }
+  if (!F)
+    return cis;
+  std::function<void(Value*)> addCallToF = [&cis, &addCallToF](Value* V) -> void {
+    for (auto U: V->users())
+      if (CallInst* ci = dyn_cast<CallInst>(U))
+        cis.push_back(ci);
+      else if (BitCastInst* bi = dyn_cast<BitCastInst>(U))
+        addCallToF(bi);
+  };
+  addCallToF(F);
   return cis;
 }
 
-CallInst* getCallToFuncOnce(Function* F, std::string FN) {
-  auto ret = getCallFromFunc(F, FN);
+CallInst* getCallToFuncOnce(Function* F) {
+  auto ret = getCallToFunc(F);
   assert(ret.size() == 1 && "Should see just one call site.");
   return ret[0];
 }

@@ -23,26 +23,25 @@ const std::string READ_INPUT_FUNC = "__ct_fuzz_read_inputs";
 const std::string EXEC_FUNC = "__ct_fuzz_exec";
 const std::string MERGE_FUNC = "__ct_fuzz_merge_ptr_inputs";
 const std::string MALLOC_WRAPPER = "__ct_fuzz_malloc_wrapper";
-const std::string MAIN_FUNC = "__ct_fuzz_main";
 
-CallInst* getCallToReadInputsFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, READ_INPUT_FUNC);
+CallInst* getCallToReadInputsFunc(Module& M) {
+  return getCallToFuncOnce(getFunction(M, READ_INPUT_FUNC));
 }
 
-CallInst* getCallToSpecFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, SPEC_FUNC_PREFIX);
+CallInst* getCallToSpecFunc(Module& M) {
+  return getCallToFuncOnce(getFunction(M, SPEC_FUNC_PREFIX));
 }
 
-CallInst* getCallToExecFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, EXEC_FUNC);
+CallInst* getCallToExecFunc(Module& M) {
+  return getCallToFuncOnce(getFunction(M, EXEC_FUNC));
 }
 
-CallInst* getCallToMergeFunc(Function* mainF) {
-  return getCallToFuncOnce(mainF, MERGE_FUNC);
+CallInst* getCallToMergeFunc(Module& M) {
+  return getCallToFuncOnce(getFunction(M, MERGE_FUNC));
 }
 
-std::vector<CallInst*> getPublicInCalls(Function* F) {
-  return getCallFromFunc(F, PUBLIC_IN_FUNC);
+std::vector<CallInst*> getPublicInCalls(Module& M) {
+  return getCallToFunc(M.getFunction(PUBLIC_IN_FUNC));
 }
 }
 
@@ -50,6 +49,7 @@ namespace CTFuzz {
 
 Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
+  Module* M = CI->getModule();
   auto DL = M->getDataLayout();
   Type* sizeT = getFirstArg(
     getFunction(*M, MALLOC_WRAPPER))->getType();
@@ -98,8 +98,8 @@ Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   return newF;
 }
 
-void InstrumentSelf::insertPublicInHandleFuncs(Function* specF) {
-  auto cis = getPublicInCalls(specF);
+void InstrumentSelf::insertPublicInHandleFuncs(Module& M) {
+  auto cis = getPublicInCalls(M);
   std::map<CallInst*, Function*> bindings;
 
   // note that we create a new function for each call site
@@ -124,9 +124,12 @@ void InstrumentSelf::insertPublicInHandleFuncs(Function* specF) {
   // clean up
   for (auto& binding: bindings)
     binding.first->eraseFromParent();
+
+  /*
   auto PF = M->getFunction(PUBLIC_IN_FUNC);
   if (PF)
     PF->eraseFromParent();
+  */
 }
 
 inline AllocaInst* createArray(IRBuilder<>& IRB, Type* T) {
@@ -307,9 +310,7 @@ void InstrumentSelf::generateSeeds(Function* F) {
 bool InstrumentSelf::runOnModule(Module& M) {
   Function* srcF = getFunction(M, Opt::EntryPoint);
   Function* specF = getSpecFunction(M);
-  Function* mainF = getFunction(M, MAIN_FUNC);
   ReadInputs ri(&M);
-  this->M = &M;
 
   if (Opt::SeedNum) {
     std::srand(time(NULL));
@@ -328,7 +329,7 @@ bool InstrumentSelf::runOnModule(Module& M) {
   // this function instruments __ct_fuzz_public_in calls such that
   // the value passed to the these calls are either recorded or checked
   // via calling public_value_handle functions
-  insertPublicInHandleFuncs(specF);
+  insertPublicInHandleFuncs(M);
 
   // boxes is a pair of pointers
   // the first element is a pointer to the function argument
@@ -337,12 +338,12 @@ bool InstrumentSelf::runOnModule(Module& M) {
   BoxList boxes;
   BoxList ptrBoxes;
   auto args = srcF->args();
-  readInputs(getCallToReadInputsFunc(mainF),
+  readInputs(getCallToReadInputsFunc(M),
     args, boxes, ri);
-  checkInputs(getCallToSpecFunc(mainF), boxes, specF);
-  mergePtrInputs(getCallToMergeFunc(mainF),
+  checkInputs(getCallToSpecFunc(M), boxes, specF);
+  mergePtrInputs(getCallToMergeFunc(M),
     args, boxes, ptrBoxes, ri);
-  execInputFunc(getCallToExecFunc(mainF),
+  execInputFunc(getCallToExecFunc(M),
     args, boxes, ptrBoxes, srcF, ri);
 
   return false;
