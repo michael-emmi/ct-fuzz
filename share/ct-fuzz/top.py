@@ -80,7 +80,8 @@ def compile_bc_to_exec(args):
     clang_cmd = ' '.join(clang_cmd)
     clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(xxHash_dir())
     clang_cmd += ' ' + args.compiler_options
-    clang_cmd += ' -o {0}'.format(args.output_file)
+    if args.output_file:
+        clang_cmd += ' -o {0}'.format(args.output_file)
     try_command(clang_cmd, shell=True)
 
 def make_test_binary(args):
