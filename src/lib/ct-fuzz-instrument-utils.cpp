@@ -1,3 +1,4 @@
+#include "llvm/IR/InstIterator.h"
 #include "ct-fuzz-instrument-utils.h"
 #include <vector>
 

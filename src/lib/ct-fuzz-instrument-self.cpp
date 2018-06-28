@@ -4,6 +4,8 @@
 #include <ctime>
 #include <iomanip>
 #include "ct-fuzz-instrument-self.h"
+#include "ct-fuzz-instrument-utils.h"
+#include "ct-fuzz-options.h"
 
 using namespace llvm;
 typedef CTFuzzInstrumentUtils Utils;

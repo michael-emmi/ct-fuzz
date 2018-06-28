@@ -1,18 +1,12 @@
 #include "llvm/IR/Function.h"
-#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Type.h"
-#include "llvm/IR/GlobalValue.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/IRBuilder.h"
-#include "ct-fuzz-naming.h"
 #include "ct-fuzz-instrument-src.h"
-#include "ct-fuzz-instrument-utils.h"
+#include "ct-fuzz-naming.h"
 
 using namespace llvm;
 
