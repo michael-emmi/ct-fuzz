@@ -41,7 +41,8 @@ namespace CTFuzz {
 Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
   auto DL = M->getDataLayout();
-  Type* sizeT = Utils::getFirstArg(mallocF)->getType();
+  Type* sizeT = Utils::getFirstArg(
+    Utils::getFunction(*M, "__ct_fuzz_malloc_wrapper"))->getType();
   Type* T = CI->getArgOperand(0)->getType();
   std::vector<Type*> ts;
 
@@ -134,7 +135,8 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
-void InstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, BoxList& boxes) {
+void InstrumentSelf::readInputs(CallInst* TCI,
+  argsT& args, BoxList& boxes, ReadInputs& ri) {
   IRBuilder<> IRB(TCI);
 
   // create two copies of input variables and read values into them
@@ -144,11 +146,11 @@ void InstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::arg_iter
   // encoding of pointer arguments
   // the first two bytes are element length (*not byte size*)
   // then read (element size * element length) bytes
-  auto GI = [&IRB, &args, &boxes, this](idx_t idx) -> void {
+  auto GI = [&IRB, &args, &boxes, &ri](idx_t idx) -> void {
     unsigned i = 0;
     for (auto& arg : args) {
       Type* T = arg.getType();
-      IRB.CreateCall(ri->getReadFunc(T), {getElement(IRB, boxes[i], idx)});
+      IRB.CreateCall(ri.getReadFunc(T), {getElement(IRB, boxes[i], idx)});
       ++i;
     }
   };
@@ -157,23 +159,22 @@ void InstrumentSelf::readInputs(CallInst* TCI, iterator_range<Function::arg_iter
   ERASE_TCI()
 }
 
-void InstrumentSelf::checkInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, Function* specF) {
+void InstrumentSelf::checkInputs(CallInst* TCI,
+  const BoxList& boxes, Function* specF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
-  unsigned i = 0;
   std::vector<Value*> argVs;
 
-  for (auto& arg : args) {
+  for (unsigned i = 0; i < specF->arg_size(); ++i)
     argVs.push_back(IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
-    ++i;
-  }
 
   IRB.CreateCall(specF, argVs);
   ERASE_TCI()
 }
 
-void InstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, BoxList& ptrBoxes) {
+void InstrumentSelf::mergePtrInputs(CallInst* TCI,
+  argsT& args, const BoxList& boxes, BoxList& ptrBoxes, ReadInputs& ri) {
   IRBuilder<> IRB(TCI);
   unsigned i = 0;
   for (auto& arg : args) {
@@ -181,7 +182,7 @@ void InstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_
     if (T->isPointerTy()) {
       AllocaInst* AI = IRB.CreateAlloca(T);
       ptrBoxes.push_back(AI);
-      IRB.CreateCall(ri->getMergeFunc(T),
+      IRB.CreateCall(ri.getMergeFunc(T),
         {AI,
         getElement(IRB, boxes[i], (idx_t)0),
         getElement(IRB, boxes[i], (idx_t)1)});
@@ -192,7 +193,9 @@ void InstrumentSelf::mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_
 }
 
 // NOTE: we're in a forked process
-void InstrumentSelf::execInputFunc(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, const BoxList& ptrBoxes, Function* srcF) {
+void InstrumentSelf::execInputFunc(CallInst* TCI,
+  argsT& args, const BoxList& boxes, const BoxList& ptrBoxes,
+  Function* srcF, ReadInputs& ri) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
@@ -208,7 +211,7 @@ void InstrumentSelf::execInputFunc(CallInst* TCI, iterator_range<Function::arg_i
     else {
       // deep copy
       auto PP = ptrBoxes[ptr_i];
-      IRB.CreateCall(ri->getCopyFunc(T),
+      IRB.CreateCall(ri.getCopyFunc(T),
         {PP, getElement(IRB, valueP, idx)});
       argVs.push_back(IRB.CreateLoad(PP));
       ++ptr_i;
@@ -295,7 +298,7 @@ bool InstrumentSelf::runOnModule(Module& M) {
   Function* srcF = Utils::getFunction(M, Opt::EntryPoint);
   Function* specF = getSpecFunction(M);
   Function* mainF = Utils::getFunction(M, "__ct_fuzz_main");
-  ri = new ReadInputs(&M);
+  ReadInputs ri(&M);
   this->M = &M;
 
   if (Opt::SeedNum) {
@@ -311,7 +314,6 @@ bool InstrumentSelf::runOnModule(Module& M) {
     return true;
   }
 
-  mallocF = Utils::getFunction(M, "__ct_fuzz_malloc_wrapper");
 
   // this function instruments __ct_fuzz_public_in calls such that
   // the value passed to the these calls are either recorded or checked
@@ -325,12 +327,14 @@ bool InstrumentSelf::runOnModule(Module& M) {
   BoxList boxes;
   BoxList ptrBoxes;
   auto args = srcF->args();
-  readInputs(getCallToReadInputsFunc(mainF), args, boxes);
-  checkInputs(getCallToSpecFunc(mainF), args, boxes, specF);
-  mergePtrInputs(getCallToMergeFunc(mainF), args, boxes, ptrBoxes);
-  execInputFunc(getCallToExecFunc(mainF), args, boxes, ptrBoxes, srcF);
+  readInputs(getCallToReadInputsFunc(mainF),
+    args, boxes, ri);
+  checkInputs(getCallToSpecFunc(mainF), boxes, specF);
+  mergePtrInputs(getCallToMergeFunc(mainF),
+    args, boxes, ptrBoxes, ri);
+  execInputFunc(getCallToExecFunc(mainF),
+    args, boxes, ptrBoxes, srcF, ri);
 
-  delete ri;
   return false;
 }
 

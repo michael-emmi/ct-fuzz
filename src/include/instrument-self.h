@@ -15,6 +15,7 @@ using namespace llvm;
 
 typedef unsigned char idx_t;
 typedef std::vector<AllocaInst*> BoxList;
+typedef iterator_range<Function::arg_iterator> argsT;
 
 namespace CTFuzz {
 class InstrumentSelf: public ModulePass {
@@ -25,16 +26,22 @@ class InstrumentSelf: public ModulePass {
 
   private:
     Module* M;
-    Function* mallocF;
     Function* buildPublicInHandleFunc(CallInst* CI);
     void insertPublicInHandleFuncs(Function* specF);
-    void readInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, BoxList& boxes);
-    void checkInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, Function* specF);
-    void mergePtrInputs(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, BoxList& ptrBoxes);
-    void execInputFunc(CallInst* TCI, iterator_range<Function::arg_iterator>& args, const BoxList& boxes, const BoxList& ptrBoxes, Function* srcF);
+    void readInputs(CallInst* TCI,
+      argsT& args, BoxList& boxes, ReadInputs& ri);
+    void checkInputs(CallInst* TCI,
+      const BoxList& boxes, Function* specF);
+    void mergePtrInputs(CallInst* TCI,
+      argsT& args,
+      const BoxList& boxes, BoxList& ptrBoxes,
+      ReadInputs& ri);
+    void execInputFunc(CallInst* TCI,
+      argsT& args,
+      const BoxList& boxes, const BoxList& ptrBoxes,
+      Function* srcF, ReadInputs& ri);
     void generateSeeds(Function* F);
     void generateSeedForT(Type* T);
-    ReadInputs* ri;
 };
 }
 
