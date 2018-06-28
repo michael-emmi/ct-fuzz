@@ -2,14 +2,15 @@
 #define CT_FUZZ_INSTRUMENT_SRC_H
 
 #include "llvm/Pass.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/InstVisitor.h"
 
-class CTFuzzInstrumentSrc: public llvm::ModulePass, public llvm::InstVisitor<CTFuzzInstrumentSrc> {
+class CTFuzzInstrumentSrc: public llvm::FunctionPass, public llvm::InstVisitor<CTFuzzInstrumentSrc> {
   public:
     static char ID;
-    CTFuzzInstrumentSrc() : llvm::ModulePass(ID) {}
-    virtual bool runOnModule(llvm::Module& M);
+    CTFuzzInstrumentSrc() : llvm::FunctionPass(ID) {}
+    virtual bool runOnFunction(llvm::Function& F);
     void visitLoadInst(llvm::LoadInst& li);
     void visitStoreInst(llvm::StoreInst& si);
     void visitBranchInst(llvm::BranchInst& bi);
@@ -18,7 +19,7 @@ class CTFuzzInstrumentSrc: public llvm::ModulePass, public llvm::InstVisitor<CTF
   private:
     llvm::Function* updateOnCondFunc;
     llvm::Function* updateOnAddrFunc;
-    void buildUpdateFuncs(llvm::Module& M);
+    void getOrBuildUpdateFuncs(llvm::Module* M);
 };
 
 #endif

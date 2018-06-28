@@ -37,22 +37,21 @@ void CTFuzzInstrumentSrc::visitSwitchInst(SwitchInst& swi) {
 
 // TODO: handle more terminitor instructions
 
-void CTFuzzInstrumentSrc::buildUpdateFuncs(Module& M) {
-  LLVMContext& C = M.getContext();
-  auto buildUpdateFunc = [&M, &C](Type* argT, std::string name) -> Function* {
+void CTFuzzInstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
+  LLVMContext& C = M->getContext();
+  auto getOrBuildUpdateFunc = [&M, &C](Type* argT, std::string name) -> Function* {
     FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {argT}, false) ;
-    return Function::Create(FT, GlobalValue::ExternalLinkage, name, &M);
+    return cast<Function>(M->getOrInsertFunction(name, FT));
   };
-  updateOnCondFunc = buildUpdateFunc(Type::getInt1Ty(C), "__ct_fuzz_update_monitor_by_cond");
-  updateOnAddrFunc = buildUpdateFunc(Type::getInt8PtrTy(C), "__ct_fuzz_update_monitor_by_addr");
+  updateOnCondFunc = getOrBuildUpdateFunc(Type::getInt1Ty(C), "__ct_fuzz_update_monitor_by_cond");
+  updateOnAddrFunc = getOrBuildUpdateFunc(Type::getInt8PtrTy(C), "__ct_fuzz_update_monitor_by_addr");
 }
 
-bool CTFuzzInstrumentSrc::runOnModule(Module& M) {
-  buildUpdateFuncs(M);
-  for (auto& F : M.functions())
-    if (!F.hasName() ||
-        (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
-      this->visit(F);
+bool CTFuzzInstrumentSrc::runOnFunction(Function& F) {
+  getOrBuildUpdateFuncs(F.getParent());
+  if (!F.hasName() ||
+      (!Naming::isCTFuzzFunc(F.getName()) && F.getName() != "main"))
+    this->visit(F);
   return false;
 }
 
