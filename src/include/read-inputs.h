@@ -6,13 +6,6 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Module.h"
-#include "instrument-utils.h"
-
-#define STDIN_READ_FUNC "__ct_fuzz_stdin_read"
-#define READ_PTR_GENERIC "__ct_fuzz_read_ptr_generic"
-#define MERGE_PTR_GENERIC "__ct_fuzz_merge_ptr_generic"
-#define COPY_PTR_GENERIC "__ct_fuzz_deep_copy_ptr_generic"
-#define MEMCPY_WRAPPER "__ct_fuzz_memcpy_wrapper"
 
 namespace CTFuzz {
 
@@ -20,14 +13,7 @@ using namespace llvm;
 
 class ReadInputs {
   public:
-    ReadInputs(Module* M) : M(M) {
-      stdinRF = getFunction(*M, STDIN_READ_FUNC);
-      genericPtrReadF = getFunction(*M, READ_PTR_GENERIC);
-      genericPtrMergeF = getFunction(*M, MERGE_PTR_GENERIC);
-      genericPtrCopyF = getFunction(*M, COPY_PTR_GENERIC);
-      memcpyF = getFunction(*M, MEMCPY_WRAPPER);
-    }
-
+    ReadInputs(Module* M);
     Function* getReadFunc(Type* elemT);
     Function* getMergeFunc(Type* elemT);
     Function* getCopyFunc(Type* elemT);

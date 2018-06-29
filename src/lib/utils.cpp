@@ -1,5 +1,5 @@
 #include "llvm/IR/InstIterator.h"
-#include "instrument-utils.h"
+#include "utils.h"
 #include <vector>
 #include "llvm/Support/raw_ostream.h"
 

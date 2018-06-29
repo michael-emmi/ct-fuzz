@@ -3,9 +3,8 @@
 #include <cstdlib>
 #include <ctime>
 #include <iomanip>
-#include "llvm/Support/raw_ostream.h"
 #include "instrument-self.h"
-#include "instrument-utils.h"
+#include "utils.h"
 #include "options.h"
 
 #define ERASE_TCI() TCI->eraseFromParent();
@@ -236,14 +235,6 @@ void InstrumentSelf::execInputFunc(CallInst* TCI,
   ERASE_TCI()
 }
 
-Function* getSpecFunction(Module& M) {
-  for (auto &F : M.functions()) {
-    if (F.hasName() && F.getName().find(SPEC_FUNC_PREFIX) == 0)
-      return &F;
-  }
-  llvm_unreachable("Unable to find spec function.");
-}
-
 void printByte(unsigned char b) {
   char tmp[4];
   sprintf(tmp, "\\x%02X", b);
@@ -308,7 +299,7 @@ void InstrumentSelf::generateSeeds(Function* F) {
 
 bool InstrumentSelf::runOnModule(Module& M) {
   Function* srcF = getFunction(M, Opt::EntryPoint);
-  Function* specF = getSpecFunction(M);
+  Function* specF = getFunction(M, SPEC_FUNC_PREFIX+"_"+Opt::EntryPoint);
   ReadInputs ri(&M);
 
   if (Opt::SeedNum) {

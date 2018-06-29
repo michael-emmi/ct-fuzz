@@ -1,5 +1,5 @@
-#ifndef INSTRUMENT_UTILS
-#define INSTRUMENT_UTILS
+#ifndef UTILS
+#define UTILS
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Instructions.h"

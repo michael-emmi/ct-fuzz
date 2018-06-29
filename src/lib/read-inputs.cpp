@@ -4,11 +4,24 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "read-inputs.h"
-#include "instrument-utils.h"
+#include "utils.h"
+
+#define STDIN_READ_FUNC "__ct_fuzz_stdin_read"
+#define READ_PTR_GENERIC "__ct_fuzz_read_ptr_generic"
+#define MERGE_PTR_GENERIC "__ct_fuzz_merge_ptr_generic"
+#define COPY_PTR_GENERIC "__ct_fuzz_deep_copy_ptr_generic"
+#define MEMCPY_WRAPPER "__ct_fuzz_memcpy_wrapper"
 
 using namespace llvm;
 
 namespace CTFuzz {
+ReadInputs::ReadInputs(Module* M) : M(M) {
+  stdinRF = getFunction(*M, STDIN_READ_FUNC);
+  genericPtrReadF = getFunction(*M, READ_PTR_GENERIC);
+  genericPtrMergeF = getFunction(*M, MERGE_PTR_GENERIC);
+  genericPtrCopyF = getFunction(*M, COPY_PTR_GENERIC);
+  memcpyF = getFunction(*M, MEMCPY_WRAPPER);
+    }
 
 unsigned ReadInputs::getIndirectionLevel(Type* T) {
   if (!T->isPointerTy())

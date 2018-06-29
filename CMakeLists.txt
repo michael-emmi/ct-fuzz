@@ -6,7 +6,7 @@ add_definitions(${LLVM_DEFINITIONS})
 add_library(CTFuzzInstrumentSelf MODULE
   src/lib/instrument-self.cpp
   src/lib/options.cpp
-  src/lib/instrument-utils.cpp
+  src/lib/utils.cpp
   src/lib/read-inputs.cpp
 )
 
