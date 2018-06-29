@@ -3,26 +3,26 @@ cmake_minimum_required(VERSION 3.1)
 find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 
-add_library(CTFuzzInstrumentSelf MODULE
+add_library(InstantiateHarness MODULE
   src/lib/instantiate-harness.cpp
   src/lib/options.cpp
   src/lib/utils.cpp
   src/lib/read-inputs.cpp
 )
 
-add_library(CTFuzzInstrumentSrc MODULE
+add_library(InstrumentMonitors MODULE
   src/lib/instrument-monitors.cpp
 )
 
 add_library(xxHash SHARED
   xxHash/xxhash.c)
 
-target_include_directories(CTFuzzInstrumentSrc PUBLIC
+target_include_directories(InstrumentMonitors PUBLIC
   ${LLVM_INCLUDE_DIRS}
   src/include
 )
 
-target_include_directories(CTFuzzInstrumentSelf PUBLIC
+target_include_directories(InstantiateHarness PUBLIC
   ${LLVM_INCLUDE_DIRS}
   src/include
 )
@@ -86,29 +86,43 @@ execute_process(
 #set_target_properties(ExtractPass PROPERTIES
 #    COMPILE_FLAGS "-fno-rtti"
 #)
-set_target_properties(CTFuzzInstrumentSrc CTFuzzInstrumentSelf
+set_target_properties(InstrumentMonitors InstantiateHarness
   PROPERTIES COMPILE_FLAGS "-fno-rtti"
 )
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)
-  set_target_properties(CTFuzzInstrumentSrc CTFuzzInstrumentSelf
+  set_target_properties(InstrumentMonitors InstantiateHarness
       PROPERTIES LINK_FLAGS "-undefined dynamic_lookup"
     )
 endif(APPLE)
 
-INSTALL(TARGETS CTFuzzInstrumentSrc CTFuzzInstrumentSelf xxHash
+INSTALL(TARGETS InstrumentMonitors InstantiateHarness xxHash
   LIBRARY DESTINATION lib/ct-fuzz
 )
 
 INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/bin/ct-fuzz
+  PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+  GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+  DESTINATION bin
+)
+
+INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-clang-fast
+  PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
+  GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+  DESTINATION bin
+  RENAME ct-fuzz-afl-clang-fast
+)
+
+INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-clang-fast++
   PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
   GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
   DESTINATION bin
+  RENAME ct-fuzz-afl-clang-fast++
 )
 
 INSTALL(FILES

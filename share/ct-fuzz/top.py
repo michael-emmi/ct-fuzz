@@ -30,11 +30,11 @@ def xxHash_include_dir():
 def ct_fuzz_lib_dir():
     return os.path.join(ct_fuzz_root(), 'share', TOOL_NAME, 'lib')
 
-def ct_fuzz_self_dynamic_lib():
-    return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME, 'libCTFuzzInstrumentSelf.so')
+def ct_fuzz_instantiate_harness_lib():
+    return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME, 'libInstantiateHarness.so')
 
 def afl_clang_fast_path():
-    return os.path.join(ct_fuzz_root(), 'bin', 'afl-clang-fast')
+    return os.path.join(ct_fuzz_root(), 'bin', 'ct-fuzz-afl-clang-fast')
 
 def ct_fuzz_shared_lib_dir():
     return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME)
@@ -78,7 +78,7 @@ def link_bc_files(input_bc_file, lib_bc_files, args):
 def run_pass(args):
     args.opt_out_file = make_file(args.input_file_name+'_post_inst', '.bc', args)
     cmd = ['opt', '-load']
-    cmd += [ct_fuzz_self_dynamic_lib()]
+    cmd += [ct_fuzz_instantiate_harness_lib()]
     cmd += ['-'+TOOL_NAME+'-instantiate-harness']
     cmd += ['-entry-point', args.entry_point]
     cmd += [args.opt_in_file, '-o', args.opt_out_file]
