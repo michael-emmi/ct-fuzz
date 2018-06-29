@@ -7,3 +7,5 @@ afl-2.52b/*
 build/*
 
 xxHash
+
+test/*/Output
