@@ -1,5 +1,5 @@
-#ifndef INSTRUMENT_SELF_H
-#define INSTRUMENT_SELF_H
+#ifndef INSTANTIATE_H
+#define INSTANTIATE_H
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Module.h"
@@ -17,10 +17,10 @@ typedef std::vector<AllocaInst*> BoxList;
 typedef iterator_range<Function::arg_iterator> argsT;
 
 namespace CTFuzz {
-class InstrumentSelf: public ModulePass {
+class InstantiateHarness: public ModulePass {
   public:
     static char ID;
-    InstrumentSelf() : ModulePass(ID) {}
+    InstantiateHarness() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
 
   private:

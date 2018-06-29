@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <iomanip>
-#include "instrument-self.h"
+#include "instantiate-harness.h"
 #include "utils.h"
 #include "options.h"
 
@@ -47,7 +47,7 @@ std::vector<CallInst*> getPublicInCalls(Module& M) {
 
 namespace CTFuzz {
 
-Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
+Function* InstantiateHarness::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
   Module* M = CI->getModule();
   auto DL = M->getDataLayout();
@@ -98,7 +98,7 @@ Function* InstrumentSelf::buildPublicInHandleFunc(CallInst* CI) {
   return newF;
 }
 
-void InstrumentSelf::insertPublicInHandleFuncs(Module& M) {
+void InstantiateHarness::insertPublicInHandleFuncs(Module& M) {
   auto cis = getPublicInCalls(M);
   std::map<CallInst*, Function*> bindings;
 
@@ -146,7 +146,7 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
-void InstrumentSelf::readInputs(CallInst* TCI,
+void InstantiateHarness::readInputs(CallInst* TCI,
   argsT& args, BoxList& boxes, ReadInputs& ri) {
   IRBuilder<> IRB(TCI);
 
@@ -170,7 +170,7 @@ void InstrumentSelf::readInputs(CallInst* TCI,
   ERASE_TCI()
 }
 
-void InstrumentSelf::checkInputs(CallInst* TCI,
+void InstantiateHarness::checkInputs(CallInst* TCI,
   const BoxList& boxes, Function* specF) {
   IRBuilder<> IRB(TCI);
 
@@ -184,7 +184,7 @@ void InstrumentSelf::checkInputs(CallInst* TCI,
   ERASE_TCI()
 }
 
-void InstrumentSelf::mergePtrInputs(CallInst* TCI,
+void InstantiateHarness::mergePtrInputs(CallInst* TCI,
   argsT& args, const BoxList& boxes, BoxList& ptrBoxes, ReadInputs& ri) {
   IRBuilder<> IRB(TCI);
   unsigned i = 0;
@@ -204,7 +204,7 @@ void InstrumentSelf::mergePtrInputs(CallInst* TCI,
 }
 
 // NOTE: we're in a forked process
-void InstrumentSelf::execInputFunc(CallInst* TCI,
+void InstantiateHarness::execInputFunc(CallInst* TCI,
   argsT& args, const BoxList& boxes, const BoxList& ptrBoxes,
   Function* srcF, ReadInputs& ri) {
   IRBuilder<> IRB(TCI);
@@ -270,7 +270,7 @@ unsigned short generateLen(Type* ET) {
   }
 }
 
-void InstrumentSelf::generateSeedForT(Type* T) {
+void InstantiateHarness::generateSeedForT(Type* T) {
   if (!T->isPointerTy())
     if (IntegerType* it = dyn_cast<IntegerType>(T))
       printInt(42, it->getBitWidth() >> 3);
@@ -292,12 +292,12 @@ void InstrumentSelf::generateSeedForT(Type* T) {
   }
 }
 
-void InstrumentSelf::generateSeeds(Function* F) {
+void InstantiateHarness::generateSeeds(Function* F) {
   for (auto& arg: F->args())
     generateSeedForT(arg.getType());
 }
 
-bool InstrumentSelf::runOnModule(Module& M) {
+bool InstantiateHarness::runOnModule(Module& M) {
   Function* srcF = getFunction(M, Opt::EntryPoint);
   Function* specF = getFunction(M, SPEC_FUNC_PREFIX+"_"+Opt::EntryPoint);
   ReadInputs ri(&M);
@@ -340,9 +340,9 @@ bool InstrumentSelf::runOnModule(Module& M) {
 }
 
 // Pass ID variable
-char InstrumentSelf::ID = 0;
+char InstantiateHarness::ID = 0;
 
 // Register the pass
-static RegisterPass<InstrumentSelf>
-X("ct-fuzz-instrument-self", "Instrumentations for constant time fuzzer");
+static RegisterPass<InstantiateHarness>
+X("ct-fuzz-instantiate-harness", "Harness instantiation for constant time fuzzer");
 }

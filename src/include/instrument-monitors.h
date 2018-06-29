@@ -1,5 +1,5 @@
-#ifndef INSTRUMENT_SRC_H
-#define INSTRUMENT_SRC_H
+#ifndef INSTRUMENT_MONITORS_H
+#define INSTRUMENT_MONITORS_H
 
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
@@ -10,10 +10,10 @@ namespace CTFuzz {
 
 using namespace llvm;
 
-class InstrumentSrc: public FunctionPass, public InstVisitor<InstrumentSrc> {
+class InstrumentMonitors: public FunctionPass, public InstVisitor<InstrumentMonitors> {
   public:
     static char ID;
-    InstrumentSrc() : FunctionPass(ID) {}
+    InstrumentMonitors() : FunctionPass(ID) {}
     virtual bool runOnFunction(Function& F);
     void visitLoadInst(LoadInst& li);
     void visitStoreInst(StoreInst& si);

@@ -66,7 +66,7 @@ def run_pass(args):
     args.opt_out_file = make_file(args.input_file_name+'_post_inst', '.bc', args)
     cmd = ['opt', '-load']
     cmd += [ct_fuzz_self_dynamic_lib()]
-    cmd += ['-'+TOOL_NAME+'-instrument-self']
+    cmd += ['-'+TOOL_NAME+'-instantiate-harness']
     cmd += ['-entry-point', args.entry_point]
     cmd += [args.opt_in_file, '-o', args.opt_out_file]
     try_command(cmd)

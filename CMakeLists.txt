@@ -4,14 +4,14 @@ find_package(LLVM REQUIRED CONFIG)
 add_definitions(${LLVM_DEFINITIONS})
 
 add_library(CTFuzzInstrumentSelf MODULE
-  src/lib/instrument-self.cpp
+  src/lib/instantiate-harness.cpp
   src/lib/options.cpp
   src/lib/utils.cpp
   src/lib/read-inputs.cpp
 )
 
 add_library(CTFuzzInstrumentSrc MODULE
-  src/lib/instrument-src.cpp
+  src/lib/instrument-monitors.cpp
 )
 
 add_library(xxHash SHARED

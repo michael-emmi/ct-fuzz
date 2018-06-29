@@ -5,7 +5,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "instrument-src.h"
+#include "instrument-monitors.h"
 
 #define UPDATE_BY_COND_FUNC "__ct_fuzz_update_monitor_by_cond"
 #define UPDATE_BY_ADDR_FUNC "__ct_fuzz_update_monitor_by_addr"
@@ -14,34 +14,34 @@ using namespace llvm;
 
 namespace CTFuzz {
 
-void InstrumentSrc::visitLoadInst(LoadInst& li) {
+void InstrumentMonitors::visitLoadInst(LoadInst& li) {
   IRBuilder<> IRB(&li);
   auto CI = IRB.CreateCall(updateOnAddrFunc,
     {IRB.CreateBitCast(li.getPointerOperand(), Type::getInt8PtrTy(li.getContext()))});
   CI->setDebugLoc(li.getParent()->begin()->getDebugLoc());
 }
 
-void InstrumentSrc::visitStoreInst(StoreInst& si) {
+void InstrumentMonitors::visitStoreInst(StoreInst& si) {
   IRBuilder<> IRB(&si);
   auto CI = IRB.CreateCall(updateOnAddrFunc,
     {IRB.CreateBitCast(si.getPointerOperand(), Type::getInt8PtrTy(si.getContext()))});
   CI->setDebugLoc(si.getParent()->begin()->getDebugLoc());
 }
 
-void InstrumentSrc::visitBranchInst(BranchInst& bi) {
+void InstrumentMonitors::visitBranchInst(BranchInst& bi) {
   if (bi.isConditional()) {
     IRBuilder<> IRB(&bi);
     IRB.CreateCall(updateOnCondFunc, {bi.getCondition()});
   }
 }
 
-void InstrumentSrc::visitSwitchInst(SwitchInst& swi) {
+void InstrumentMonitors::visitSwitchInst(SwitchInst& swi) {
   llvm_unreachable("Not really expect to see switchinsts.");
 }
 
 // TODO: handle more terminitor instructions
 
-void InstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
+void InstrumentMonitors::getOrBuildUpdateFuncs(Module* M) {
   LLVMContext& C = M->getContext();
   auto getOrBuildUpdateFunc = [&M, &C](Type* argT, std::string name) -> Function* {
     FunctionType* FT = FunctionType::get(Type::getVoidTy(C), {argT}, false) ;
@@ -51,7 +51,7 @@ void InstrumentSrc::getOrBuildUpdateFuncs(Module* M) {
   updateOnAddrFunc = getOrBuildUpdateFunc(Type::getInt8PtrTy(C), UPDATE_BY_ADDR_FUNC);
 }
 
-bool InstrumentSrc::runOnFunction(Function& F) {
+bool InstrumentMonitors::runOnFunction(Function& F) {
   getOrBuildUpdateFuncs(F.getParent());
 
   auto isCTFuzzFunc = [](std::string name) -> bool {
@@ -65,12 +65,12 @@ bool InstrumentSrc::runOnFunction(Function& F) {
 }
 
 // Pass ID variable
-char InstrumentSrc::ID = 0;
+char InstrumentMonitors::ID = 0;
 }
 
 static void registerThisPass(const PassManagerBuilder &,
                            llvm::legacy::PassManagerBase &PM) {
-    PM.add(new CTFuzz::InstrumentSrc());
+    PM.add(new CTFuzz::InstrumentMonitors());
 }
 
 static RegisterStandardPasses
