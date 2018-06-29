@@ -127,6 +127,10 @@ static void edit_params(u32 argc, char** argv) {
   cc_params[cc_par_cnt++] = "-Xclang";
   cc_params[cc_par_cnt++] = "-load";
   cc_params[cc_par_cnt++] = "-Xclang";
+  cc_params[cc_par_cnt++] = alloc_printf("%s/../build/libCTFuzzInstrumentSrc.so", obj_path);
+  cc_params[cc_par_cnt++] = "-Xclang";
+  cc_params[cc_par_cnt++] = "-load";
+  cc_params[cc_par_cnt++] = "-Xclang";
   cc_params[cc_par_cnt++] = alloc_printf("%s/afl-llvm-pass.so", obj_path);
 #endif /* ^USE_TRACE_PC */
 
@@ -205,7 +209,7 @@ static void edit_params(u32 argc, char** argv) {
 
 #endif /* USE_TRACE_PC */
 
-  if (!getenv("AFL_DONT_OPTIMIZE")) {
+  if (0 && !getenv("AFL_DONT_OPTIMIZE")) {
 
     cc_params[cc_par_cnt++] = "-g";
     cc_params[cc_par_cnt++] = "-O3";
