@@ -8,7 +8,8 @@ TOOL_NAME = 'ct-fuzz'
 def arguments():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('input_file', metavar='FILE', default=None, type=str, help='input file to fuzz')
+    parser.add_argument('input_file', metavar='FILE', default=None, type=str, help='specification file (can also contain source functions to fuzz)')
+    parser.add_argument('--obj-file', metavar='FILE', default=None, type=str, help='input object file')
     parser.add_argument('-d', '--debug', action="store_true", default=False, help='enable debugging output')
     parser.add_argument('--entry-point', metavar='PROC', default=None, type=str, help='entry point function to start with')
     parser.add_argument('--opt-level', metavar='NUM', default=2, type=int, help='compiler optimization level')
@@ -89,6 +90,8 @@ def compile_bc_to_exec(args):
     llc_cmd = ['llc', '-filetype=obj', args.opt_out_file, '-o', args.llc_out_file]
     try_command(llc_cmd)
     clang_cmd = [afl_clang_fast_path(), args.llc_out_file]
+    if args.obj_file:
+        clang_cmd += [args.obj_file]
     clang_cmd += ['-L`jemalloc-config --libdir`', '-Wl,-rpath,`jemalloc-config --libdir`', '-ljemalloc', '`jemalloc-config --libs`']
     clang_cmd = ' '.join(clang_cmd)
     clang_cmd += ' -lxxHash -L{0} -Wl,-rpath,{0}'.format(ct_fuzz_shared_lib_dir())
