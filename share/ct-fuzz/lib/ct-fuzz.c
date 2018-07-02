@@ -87,9 +87,12 @@ void NS(main)(void) {
   }
 
   NS(check_observations)();
+  exit(EXIT_SUCCESS);
 }
 
+/*
 int main(void) {
   NS(main)();
   return 0;
 }
+*/
