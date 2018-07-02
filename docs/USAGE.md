@@ -30,3 +30,19 @@ CT_FUZZ_SPEC(void, foo, char* a) {
 Function `__ct_fuzz_array_len` returns the number of elements a pointer argument points to. A pointer to a single element should have length 1.
 
 Macro `CT_FUZZ_ASSUME` is used to place assumptions. If the condition argument doesn't hold, the execution stops.
+
+# Run ct-fuzz
+There are currently two modes for `ct-fuzz` depending on the types of input files.
+## Monolithic input files
+If the input file given to `ct-fuzz` contains both specification functions as well as source functions to fuzz, simply pass input file name to `ct-fuzz`. For example,
+
+```
+ct-fuzz sort_negative.c --entry-point=sort3
+```
+## Separate specification and source
+If the specification functions and source functions are in different files, we expect the users to compile source functions to object files using `ct-fuzz-afl-clang-fast*` and then invoke `ct-fuzz` by adding `--obj-file <file>` flag. For example,
+
+```
+ct-fuzz-afl-clang-fast sort_negative.c -c -O2
+ct-fuzz sort_negative_spec.c --entry-point=sort3 --obj-file=sort_negative.o
+```
