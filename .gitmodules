@@ -1,6 +1,8 @@
 [submodule "xxHash"]
 	path = xxHash
 	url = https://github.com/Cyan4973/xxHash.git
+  ignore = dirty
 [submodule "afl"]
 	path = afl
 	url = https://github.com/shaobo-he/afl.git
+  ignore = dirty
