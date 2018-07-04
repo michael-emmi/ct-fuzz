@@ -32,13 +32,13 @@ static void NS(update_hash)(char* buf, size_t size) {
   *old = XXH64((void*)&temp, sizeof(temp), 0);
 }
 
-void NS(update_monitor_by_cond)(bool cond) {
-  NS(dbg_print_cond)(cond);
+void NS(update_monitor_by_cond)(bool cond, char* fn, num_t ln, num_t cn) {
+  NS(dbg_print_cond)(cond, fn, ln, cn);
   NS(update_hash)((char*)&cond, sizeof(bool));
 }
 
-void NS(update_monitor_by_addr)(char* addr) {
-  NS(dbg_print_addr)(addr);
+void NS(update_monitor_by_addr)(char* addr, char* fn, num_t ln, num_t cn) {
+  NS(dbg_print_addr)(addr, fn, ln, cn);
   NS(update_hash)((char*)&addr, sizeof(char*));
 }
 
