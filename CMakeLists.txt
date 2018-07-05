@@ -66,14 +66,20 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-execute_process(
+add_dependencies(InstrumentMonitors compile-afl)
+add_custom_target(
+  compile-afl
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-pass.so
+)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-pass.so
   COMMAND ${MAKE}
+  COMMAND ${MAKE} -C llvm_mode
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/afl
 )
-
-execute_process(
-  COMMAND ${MAKE}
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/afl/llvm_mode
+set_source_files_properties(
+  ${CMAKE_CURRENT_SOURCE_DIR}/afl/afl-llvm-pass.so
+  PROPERTIES GENERATED TRUE
 )
 
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
