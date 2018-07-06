@@ -49,8 +49,10 @@ def prep_and_clean_up(func):
         os.environ["AFL_DONT_OPTIMIZE"] = 'true'
         os.environ["AFL_PATH"] = ct_fuzz_shared_lib_dir()
         args.input_file_name = get_file_name(args.input_file)
-        func(args)
-        remove_temp_files()
+        try:
+            func(args)
+        finally:
+            remove_temp_files()
     return do
 
 def compile_c_file(args, c_file_name):
