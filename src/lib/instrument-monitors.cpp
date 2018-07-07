@@ -8,6 +8,7 @@
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Scalar.h"
 #include "instrument-monitors.h"
 
 #include <tuple>
@@ -184,6 +185,7 @@ char InstrumentMonitors::ID = 0;
 
 static void registerThisPass(const PassManagerBuilder &,
                            llvm::legacy::PassManagerBase &PM) {
+    PM.add(createLowerSwitchPass());
     PM.add(new CTFuzz::InstrumentMonitors());
 }
 
