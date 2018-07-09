@@ -138,13 +138,15 @@ void InstrumentMonitors::visitBranchInst(BranchInst& bi) {
     Module* M = bi.getModule();
     LLVMContext& C = M->getContext();
 
-    IRB.CreateCall(updateOnCondFunc,
+    auto CI = IRB.CreateCall(updateOnCondFunc,
       {bi.getCondition(),
       IRB.CreateGEP(getFileNameStrGlobal(M, std::get<0>(di)),
         {mkZeroIdx(C), mkZeroIdx(C)}),
       mkNum(std::get<1>(di), C),
       mkNum(std::get<2>(di), C)
       });
+
+    setDebugLocOnDemand(CI);
   }
 }
 
