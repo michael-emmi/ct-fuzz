@@ -5,7 +5,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/Type.h"
 #include "read-inputs.h"
 
 #include <vector>
@@ -38,8 +37,6 @@ class InstantiateHarness: public ModulePass {
       argsT& args,
       const BoxList& boxes, const BoxList& ptrBoxes,
       Function* srcF, ReadInputs& ri);
-    void generateSeeds(Function* F);
-    void generateSeedForT(Type* T);
 };
 }
 

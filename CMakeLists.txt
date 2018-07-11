@@ -5,7 +5,6 @@ add_definitions(${LLVM_DEFINITIONS})
 
 add_library(InstantiateHarness MODULE
   src/lib/instantiate-harness.cpp
-  src/lib/options.cpp
   src/lib/utils.cpp
   src/lib/read-inputs.cpp
 )

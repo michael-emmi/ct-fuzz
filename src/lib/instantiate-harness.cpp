@@ -1,17 +1,10 @@
-#include <iostream>
-#include <cstdint>
-#include <cstdlib>
-#include <ctime>
-#include <iomanip>
 #include "instantiate-harness.h"
 #include "utils.h"
-#include "options.h"
+#include "llvm/Support/CommandLine.h"
 
 #define ERASE_TCI() TCI->eraseFromParent();
 
 using namespace llvm;
-
-typedef CTFuzz::Options Opt;
 
 namespace {
 using namespace CTFuzz;
@@ -46,6 +39,10 @@ std::vector<CallInst*> getPublicInCalls(Module& M) {
 }
 
 namespace CTFuzz {
+const cl::opt<std::string> EntryPoint(
+  "entry-point",
+  cl::desc("Entry point function name")
+);
 
 Function* InstantiateHarness::buildPublicInHandleFunc(CallInst* CI) {
   static unsigned counter = 0;
@@ -235,86 +232,10 @@ void InstantiateHarness::execInputFunc(CallInst* TCI,
   ERASE_TCI()
 }
 
-void printByte(unsigned char b) {
-  char tmp[4];
-  sprintf(tmp, "\\x%02X", b);
-  std::cout << tmp;
-}
-
-void printInt(uint64_t v, unsigned size) {
-  unsigned char* p = (unsigned char*)(&v);
-  for (unsigned i = 0; i < size; ++i)
-    printByte(p[i]);
-}
-
-bool flipCoin() {
-  return std::rand() & 1U;
-}
-
-unsigned short generateLen(Type* ET) {
-  if (ET->isStructTy() || ET->isPointerTy())
-    return flipCoin()? 1 : 2;
-  else {
-    bool b1 = flipCoin();
-    bool b2 = flipCoin();
-    if (b1)
-      if (b2)
-        return 1;
-      else
-        return 2;
-    else
-      if (b2)
-        return 3;
-      else
-        return 4;
-  }
-}
-
-void InstantiateHarness::generateSeedForT(Type* T) {
-  if (!T->isPointerTy())
-    if (IntegerType* it = dyn_cast<IntegerType>(T))
-      printInt(42, it->getBitWidth() >> 3);
-    else if (ArrayType* at = dyn_cast<ArrayType>(T))
-      for (unsigned i = 0 ; i < at->getNumElements(); ++i)
-        generateSeedForT(at->getElementType());
-    else if (StructType* st = dyn_cast<StructType>(T))
-      for (unsigned i = 0 ; i < st->getNumElements(); ++i)
-        generateSeedForT(st->getElementType(i));
-    else
-      llvm_unreachable("doesn't support this type");
-  else {
-    PointerType* pt = cast<PointerType>(T);
-    Type* et = pt->getElementType();
-    unsigned short len = generateLen(et);
-    printInt(len, 2);
-    for (unsigned short i = 0; i < len; ++i)
-      generateSeedForT(et);
-  }
-}
-
-void InstantiateHarness::generateSeeds(Function* F) {
-  for (auto& arg: F->args())
-    generateSeedForT(arg.getType());
-}
-
 bool InstantiateHarness::runOnModule(Module& M) {
-  Function* srcF = getFunction(M, Opt::EntryPoint);
-  Function* specF = getFunction(M, SPEC_FUNC_PREFIX+"_"+Opt::EntryPoint);
+  Function* srcF = getFunction(M, EntryPoint);
+  Function* specF = getFunction(M, SPEC_FUNC_PREFIX+"_"+EntryPoint);
   ReadInputs ri(&M);
-
-  if (Opt::SeedNum) {
-    std::srand(time(NULL));
-    for (unsigned i = 0; i < Opt::SeedNum; ++i) {
-      auto s = std::rand();
-      std::srand(s);
-      generateSeeds(srcF);
-      std::srand(s);
-      generateSeeds(srcF);
-      std::cout << std::endl;
-    }
-    return true;
-  }
-
 
   // this function instruments __ct_fuzz_public_in calls such that
   // the value passed to the these calls are either recorded or checked
