@@ -13,6 +13,10 @@ add_library(InstrumentMonitors MODULE
   src/lib/instrument-monitors.cpp
 )
 
+add_library(GenerateSeeds MODULE
+  src/lib/generate-seeds.cpp
+)
+
 add_library(xxHash SHARED
   xxHash/xxhash.c)
 
@@ -22,6 +26,11 @@ target_include_directories(InstrumentMonitors PUBLIC
 )
 
 target_include_directories(InstantiateHarness PUBLIC
+  ${LLVM_INCLUDE_DIRS}
+  src/include
+)
+
+target_include_directories(GenerateSeeds PUBLIC
   ${LLVM_INCLUDE_DIRS}
   src/include
 )
@@ -91,19 +100,19 @@ set_source_files_properties(
 #set_target_properties(ExtractPass PROPERTIES
 #    COMPILE_FLAGS "-fno-rtti"
 #)
-set_target_properties(InstrumentMonitors InstantiateHarness
+set_target_properties(InstrumentMonitors InstantiateHarness GenerateSeeds
   PROPERTIES COMPILE_FLAGS "-fno-rtti"
 )
 
 # Get proper shared-library behavior (where symbols are not necessarily
 # resolved when the shared library is linked) on OS X.
 if(APPLE)
-  set_target_properties(InstrumentMonitors InstantiateHarness
+  set_target_properties(InstrumentMonitors InstantiateHarness GenerateSeeds
       PROPERTIES LINK_FLAGS "-undefined dynamic_lookup"
     )
 endif(APPLE)
 
-INSTALL(TARGETS InstrumentMonitors InstantiateHarness xxHash
+INSTALL(TARGETS InstrumentMonitors InstantiateHarness xxHash GenerateSeeds
   LIBRARY DESTINATION lib/ct-fuzz
 )
 
