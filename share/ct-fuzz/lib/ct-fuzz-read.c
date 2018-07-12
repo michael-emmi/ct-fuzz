@@ -40,6 +40,7 @@ void NS(stdin_read)(void* buf, size_t size) {
 }
 
 static len_t NS(read_array_len)(void) {
+  //len_t ret = 0;
   len_t ret;
   NS(stdin_read)(&ret, sizeof(len_t));
   return ret;

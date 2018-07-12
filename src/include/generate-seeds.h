@@ -3,6 +3,7 @@
 #include "llvm/Pass.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/Instructions.h"
 
 #include <sstream>
 
@@ -16,8 +17,8 @@ class GenerateSeeds: public FunctionPass {
     virtual bool runOnFunction(Function& F);
 
   private:
-    void generateSeeds(Function* F, std::ostream& ss);
-    void generateSeedForT(Type* T, std::ostream& ss);
+    void generateSeedForInvocation(CallInst* CI, std::ostream& ss);
+    void generateSeedForVT(Value* V, Type* T, std::ostream& ss);
 };
 }
 
