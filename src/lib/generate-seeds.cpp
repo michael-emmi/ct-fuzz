@@ -43,7 +43,7 @@ ConstantInt* getConstantInt(Value* V) {
 }
 
 void printByte(unsigned char b, std::ostream& ss) {
-  char tmp[4];
+  char tmp[8] = {0};
   sprintf(tmp, "\\x%02X", b);
   ss << tmp;
 }
@@ -95,8 +95,6 @@ Invocations getInvocations(Function* seedF) {
 
 namespace CTFuzz {
 void GenerateSeeds::generateSeedForVT(Value* V, Type* T, std::ostream& ss) {
-  //errs() << "V: " << *V << "\n";
-  //errs() << "T: " << *T << "\n";
   if (!T->isPointerTy())
     if (IntegerType* it = dyn_cast<IntegerType>(T)) {
       auto CI = getConstantInt(V);
@@ -124,15 +122,10 @@ void GenerateSeeds::generateSeedForVT(Value* V, Type* T, std::ostream& ss) {
     PointerType* pt = cast<PointerType>(T);
     Type* et = pt->getElementType();
     Constant* C = getElement(V);
-    C->getType()->print(errs());
     unsigned len = C->getType()->isArrayTy() ?
       cast<ArrayType>(C->getType())->getNumElements() : 1;
     printInt(len, 2, ss);
-    errs() << "len: " << len << "\n";
-      errs() << "C2: " << *C << "\n";
-    errs() << *C->getAggregateElement(0U) << "\n";
     for (unsigned i = 0; i < len; ++i) {
-      errs() << "i: " << i << *C->getAggregateElement(i) << "\n";
       generateSeedForVT(C->getAggregateElement(i), et, ss);
     }
   }
