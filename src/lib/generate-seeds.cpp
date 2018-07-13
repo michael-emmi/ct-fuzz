@@ -84,7 +84,7 @@ Constant* getUnitOrArray(Value* V) {
 
 Invocations getInvocations(Function* seedF) {
   Module* M = seedF->getParent();
-  Function* srcF = M->getFunction(EntryPoint);
+  Function* srcF = M->getFunction("__ct_fuzz_invocation_"+EntryPoint);
   Invocations ret;
   for (auto U: srcF->users())
     if (isa<CallInst>(U) && cast<Instruction>(U)->getFunction() == seedF)
@@ -146,6 +146,7 @@ void GenerateSeeds::generateSeedForInvocation(CallInst* CI, std::ostream& ss) {
 }
 
 bool GenerateSeeds::runOnFunction(Function& F) {
+  bool ret = true;
   if (F.hasName() && F.getName().str() == "__ct_fuzz_seed_" + EntryPoint) {
     std::ofstream f;
     if (OutputFile.getNumOccurrences())
@@ -159,11 +160,16 @@ bool GenerateSeeds::runOnFunction(Function& F) {
       ss << "\n";
     }
 
+    for (auto I : Is) {
+      I->eraseFromParent();
+      ret = false;
+    }
+
     if (OutputFile.getNumOccurrences())
       static_cast<std::ofstream*>(&ss)->close();
   }
 
-  return true;
+  return ret;
 }
 
 // Pass ID variable

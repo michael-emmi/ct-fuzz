@@ -13,8 +13,10 @@ uint16_t NS(get_arr_len)(const char* const);
   void* __ct_fuzz_dummy_ ## F() { return (void*)&F;} \
   void __ct_fuzz_spec_ ## F(__VA_ARGS__)
 
-#define CT_FUZZ_SEED(F) \
-  void __ct_fuzz_seed_ ## F(void) __attribute__((optnone))
+#define CT_FUZZ_SEED(RET,F,...) \
+  RET F(__VA_ARGS__); \
+  void __ct_fuzz_invocation_ ## F(__VA_ARGS__); \
+  void __ct_fuzz_seed_ ## F(void)
 
 #define SEED_UNIT(T,N,...) \
   static const T N = __VA_ARGS__;
@@ -24,6 +26,9 @@ uint16_t NS(get_arr_len)(const char* const);
 
 #define SEED_2D_ARR(T,N,L1,L2,...) \
   static const T N[L1][L2] = __VA_ARGS__;
+
+#define PRODUCE(F,...) \
+  __ct_fuzz_invocation_ ## F(__VA_ARGS__);
 
 #define CT_FUZZ_ASSUME(cond) NS(assume)(cond, "assumption violation")
 

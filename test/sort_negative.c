@@ -34,17 +34,12 @@ CT_FUZZ_SPEC(void, sort3, int* out, int* in) {
   printf("%u: %d, %d, %d\n", in_len, in[0], in[1], in[2]);
 }
 
-void foo(int**);
-void bar(int[2][3]);
-
-CT_FUZZ_SEED(sort3) {
+CT_FUZZ_SEED(void, sort3,int*, int*) {
   SEED_1D_ARR(int, o1, 3, {0})
   SEED_1D_ARR(int, i1, 3, {1,2,3})
   SEED_1D_ARR(int, o2, 4, {0})
   SEED_1D_ARR(int, i2, 4, {1,2,3,4})
   SEED_2D_ARR(int, o, 2, 3, {{0}, {0}})
-  sort3(o1, i1);
-  sort3(&o[0], i2);
-  foo(o);
-  bar(o);
+  PRODUCE(sort3, o1, i1)
+  PRODUCE(sort3, &o[0], i2);
 }

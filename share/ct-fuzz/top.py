@@ -8,13 +8,22 @@ TOOL_NAME = 'ct-fuzz'
 def arguments():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('input_file', metavar='FILE', default=None, type=str, help='specification file (can also contain source functions to fuzz)')
-    parser.add_argument('--obj-file', metavar='FILE', default=None, type=str, help='input object file')
-    parser.add_argument('-d', '--debug', action="store_true", default=False, help='enable debugging output')
-    parser.add_argument('--entry-point', metavar='PROC', default=None, type=str, help='entry point function to start with')
-    parser.add_argument('--opt-level', metavar='NUM', default=2, type=int, help='compiler optimization level')
-    parser.add_argument('--compiler-options', metavar='OPTIONS', default='', type=str, help='compiler options')
-    parser.add_argument('-o', '--output-file', metavar='FILE', default=None, type=str, help='output binary')
+    parser.add_argument('input_file', metavar='FILE', default=None, type=str,
+            help='specification file (can also contain source functions to fuzz)')
+    parser.add_argument('--obj-file', metavar='FILE', default=None, type=str,
+            help='input object file')
+    parser.add_argument('-d', '--debug', action="store_true", default=False,
+            help='enable debugging output')
+    parser.add_argument('--entry-point', metavar='PROC', default=None, type=str,
+            help='entry point function to start with')
+    parser.add_argument('--opt-level', metavar='NUM', default=2, type=int,
+            help='compiler optimization level')
+    parser.add_argument('--compiler-options', metavar='OPTIONS', default='', type=str,
+            help='compiler options')
+    parser.add_argument('-o', '--output-file', metavar='FILE', default=None, type=str,
+            help='output binary')
+    parser.add_argument('--seed-file', metavar='FILE', default=None, type=str,
+            help='file containing generated seeds (optional)')
 
     args = parser.parse_args()
     return args
@@ -33,6 +42,9 @@ def ct_fuzz_lib_dir():
 
 def ct_fuzz_instantiate_harness_lib():
     return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME, 'libInstantiateHarness.so')
+
+def ct_fuzz_generate_seed_lib():
+    return os.path.join(ct_fuzz_root(), 'lib', TOOL_NAME, 'libGenerateSeeds.so')
 
 def afl_clang_fast_path():
     return os.path.join(ct_fuzz_root(), 'bin', 'ct-fuzz-afl-clang-fast')
@@ -78,14 +90,20 @@ def link_bc_files(input_bc_file, lib_bc_files, args):
     cmd += ['-o', args.opt_in_file]
     try_command(cmd);
 
-def run_pass(args):
-    args.opt_out_file = make_file(args.input_file_name+'_post_inst', '.bc', args)
+def run_opt(lib_path, pass_opt, input_file, output_file, additional_args=[]):
     cmd = ['opt', '-load']
-    cmd += [ct_fuzz_instantiate_harness_lib()]
-    cmd += ['-'+TOOL_NAME+'-instantiate-harness']
+    cmd += [lib_path]
+    cmd += ['-'+TOOL_NAME+pass_opt]
     cmd += ['-entry-point', args.entry_point]
-    cmd += [args.opt_in_file, '-o', args.opt_out_file]
-    try_command(cmd)
+    cmd += [input_file, '-o', output_file]
+    cmd += additional_args
+    return try_command(cmd)
+
+def instantiate_harness(args):
+    args.opt_out_file = make_file(args.input_file_name+'_post_inst', '.bc', args)
+    run_opt(ct_fuzz_instantiate_harness_lib(),
+            '-instantiate-harness',
+            args.opt_in_file, args.opt_out_file)
 
 def compile_bc_to_exec(args):
     args.llc_out_file = make_file(get_file_name(args.opt_out_file), '.o', args)
@@ -102,12 +120,21 @@ def compile_bc_to_exec(args):
         clang_cmd += ' -o {0}'.format(args.output_file)
     try_command(clang_cmd, shell=True)
 
+def generate_seeds(input_bc_file, args):
+    output = run_opt(ct_fuzz_generate_seed_lib(),
+            '-generate-seeds',
+            input_bc_file, input_bc_file,
+            ['-output-file', args.seed_file] if args.seed_file else [])
+    if not args.seed_file:
+        print output
+
 @prep_and_clean_up
 def make_test_binary(args):
     input_bc_file = compile_c_file(args, args.input_file)
+    generate_seeds(input_bc_file, args)
     lib_bc_files = build_libs(args)
     link_bc_files(input_bc_file, lib_bc_files, args)
-    run_pass(args)
+    instantiate_harness(args)
     compile_bc_to_exec(args)
 
 def main():
