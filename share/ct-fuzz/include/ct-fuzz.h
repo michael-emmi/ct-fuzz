@@ -14,7 +14,7 @@ uint16_t NS(get_arr_len)(const char* const);
   void __ct_fuzz_spec_ ## F(__VA_ARGS__)
 
 #define CT_FUZZ_SEED(F) \
-  void __ct_fuzz_seed_ ## F(void)
+  void __ct_fuzz_seed_ ## F(void) __attribute__((optnone))
 
 #define SEED_UNIT(T,N,...) \
   static const T N = __VA_ARGS__;
