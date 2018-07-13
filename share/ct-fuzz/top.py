@@ -76,6 +76,8 @@ def compile_c_file(args, c_file_name):
     cmd += args.compiler_options.split()
     output_file = make_file(get_file_name(c_file_name), '.bc', args)
     cmd += ['-o', output_file]
+    if sys.stdout.isatty(): cmd += ['-fcolor-diagnostics']
+    cmd += ['-Wno-incompatible-pointer-types-discards-qualifiers']
     try_command(cmd);
     return output_file
 
