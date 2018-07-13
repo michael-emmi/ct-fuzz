@@ -78,7 +78,9 @@ Constant* getUnitOrArray(Value* V) {
       C = C->getAggregateElement(idx);
     }
     return C;
-  } else
+  } else if (isa<Constant>(V))
+    return cast<Constant>(V);
+  else
     llvm_unreachable("dude, who are you?");
 }
 

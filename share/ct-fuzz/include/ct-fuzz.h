@@ -27,6 +27,9 @@ uint16_t NS(get_arr_len)(const char* const);
 #define SEED_2D_ARR(T,N,L1,L2,...) \
   static const T N[L1][L2] = __VA_ARGS__;
 
+#define SEED_3D_ARR(T,N,L1,L2,L3,...) \
+  static const T N[L1][L2][L3] = __VA_ARGS__;
+
 #define PRODUCE(F,...) \
   __ct_fuzz_invocation_ ## F(__VA_ARGS__);
 
