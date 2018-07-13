@@ -57,18 +57,18 @@ void printInt(uint64_t v, unsigned size, std::ostream& ss) {
 Value* stripBitCasts(Value* V) {
   if (auto bi = dyn_cast<BitCastInst>(V))
     return stripBitCasts(bi->getOperand(0));
-  else if (auto be = dyn_cast<ConstantExpr>(V))
-    if (be->isCast())
-      return stripBitCasts(be->getAsInstruction());
+  else if (isa<ConstantExpr>(V) &&
+    cast<ConstantExpr>(V)->getOpcode() == Instruction::BitCast)
+      return stripBitCasts(cast<ConstantExpr>(V)->getOperand(0));
   return V;
 }
 
-Constant* getElement(Value* V) {
+Constant* getUnitOrArray(Value* V) {
   V = stripBitCasts(V);
   if (isa<GlobalVariable>(V))
-      return cast<Constant>(V);
+    return cast<GlobalVariable>(V)->getInitializer();
   else if (isa<ConstantExpr>(V) &&
-      cast<ConstantExpr>(V)->isGEPWithNoNotionalOverIndexing()) {
+    cast<ConstantExpr>(V)->isGEPWithNoNotionalOverIndexing()) {
     Constant* CT = cast<Constant>(V);
     GlobalVariable* G = cast<GlobalVariable>(CT->getOperand(0));
     assert(G->hasInitializer && "current assumption, no?");
@@ -121,13 +121,18 @@ void GenerateSeeds::generateSeedForVT(Value* V, Type* T, std::ostream& ss) {
   else {
     PointerType* pt = cast<PointerType>(T);
     Type* et = pt->getElementType();
-    Constant* C = getElement(V);
-    unsigned len = C->getType()->isArrayTy() ?
+    assert(isa<Constant>(V) && "V should be a constant here");
+    Constant* C = getUnitOrArray(cast<Constant>(V));
+    bool isArr = C->getType()->isArrayTy();
+    assert(isArr? cast<ArrayType>(C->getType())->getElementType() : C->getType() == et
+      && "type mismatch shouldn't happen at this point");
+    unsigned len = isArr ?
       cast<ArrayType>(C->getType())->getNumElements() : 1;
     printInt(len, 2, ss);
-    for (unsigned i = 0; i < len; ++i) {
-      generateSeedForVT(C->getAggregateElement(i), et, ss);
-    }
+    for (unsigned i = 0; i < len; ++i)
+      generateSeedForVT(
+        isArr? C->getAggregateElement(i) : C,
+        et, ss);
   }
 }
 
