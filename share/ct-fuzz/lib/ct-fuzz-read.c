@@ -9,6 +9,8 @@
 #define ARR_INFO_COUNTER NS(arr_info_counter)
 #define ARR_INFO_LIST NS(array_info_list)
 
+#define READ_BYTES_LIMIT 80
+
 typedef struct {
   char* ptr;
   len_t len;
@@ -33,6 +35,8 @@ len_t NS(get_arr_len)(const char* ptr) {
 }
 
 void NS(stdin_read)(void* buf, size_t size) {
+  if (size > READ_BYTES_LIMIT)
+    exit(READ_BYTES_LIMIT);
   // not sure if the if condition is required.
   // it's added just to make sure nothing bad happens.
   if (size)
