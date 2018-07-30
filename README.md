@@ -5,7 +5,7 @@ The fuzzer for constant time.
 ## Requirements
 
 * The [Python] platform, version 2.7
-* The [LLVM] compiler infrastructure, version 3.9
+* The [LLVM] compiler infrastructure, version >= 5.0
 * The [jemalloc] memory allocator
 
 ## Installation

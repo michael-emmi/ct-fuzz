@@ -41,7 +41,7 @@ target_include_directories(xxHash PRIVATE
 
 link_directories(${LLVM_LIBRARY_DIRS})
 
-find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config-3.9 llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")
+find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config PATHS ${LLVM_CONFIG} DOC "llvm-config")
 find_program(MAKE make)
 
 if (LLVM_CONFIG_EXECUTABLE STREQUAL "LLVM_CONFIG_EXECUTABLE-NOTFOUND")
@@ -53,8 +53,6 @@ execute_process(
   OUTPUT_VARIABLE CMAKE_CXX_FLAGS
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
-
-string(REPLACE "-fvisibility-inlines-hidden" "" LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
 
 execute_process(
   COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs
@@ -102,6 +100,10 @@ set_source_files_properties(
 #)
 set_target_properties(InstrumentMonitors InstantiateHarness GenerateSeeds
   PROPERTIES COMPILE_FLAGS "-fno-rtti"
+)
+
+set_target_properties(InstrumentMonitors
+  PROPERTIES LINK_FLAGS "-Wl,-znodelete"
 )
 
 # Get proper shared-library behavior (where symbols are not necessarily
