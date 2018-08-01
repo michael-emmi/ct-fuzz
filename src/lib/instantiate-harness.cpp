@@ -54,11 +54,11 @@ inline AllocaInst* createArray(IRBuilder<>& IRB, Type* T) {
   return IRB.CreateAlloca(ArrayType::get(T, 2));
 }
 
-inline ConstantInt* createIdx(Value* AI, idx_t idx) {
+inline ConstantInt* createIdx(Value* AI, unsigned idx) {
   return ConstantInt::get(IntegerType::get(AI->getContext(), 64), idx);
 }
 
-inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, idx_t idx) {
+inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, unsigned idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), createIdx(AI, idx)});
 }
 
@@ -100,7 +100,7 @@ BoxList InstantiateHarness::readInputs(CallInst* TCI, argsT& args,
   for (auto& arg : args) {
     Value* arg1_ptr = nullptr;
     Value* arg2_ptr = nullptr;
-    Value* gep1 = getElement(IRB, ret[i], (idx_t)0);
+    Value* gep1 = getElement(IRB, ret[i], (unsigned)0);
     Value* gep2 = getElement(IRB, ret[i], 1);
 
     Type* T = arg.getType();

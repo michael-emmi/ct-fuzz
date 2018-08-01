@@ -15,7 +15,6 @@
 
 using namespace llvm;
 
-typedef unsigned char idx_t;
 typedef std::vector<AllocaInst*> BoxList;
 typedef iterator_range<Function::arg_iterator> argsT;
 
