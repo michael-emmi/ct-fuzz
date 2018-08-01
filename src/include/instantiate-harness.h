@@ -8,6 +8,9 @@
 #include "read-inputs.h"
 
 #include <vector>
+#include <map>
+#include <set>
+#include <utility>
 
 using namespace llvm;
 
@@ -23,20 +26,17 @@ class InstantiateHarness: public ModulePass {
     virtual bool runOnModule(Module& M);
 
   private:
-    Function* buildPublicInHandleFunc(CallInst* CI);
-    void insertPublicInHandleFuncs(Module& M);
-    void readInputs(CallInst* TCI,
-      argsT& args, BoxList& boxes, ReadInputs& ri);
-    void checkInputs(CallInst* TCI,
+    BoxList readInputs(CallInst* TCI, argsT& args,
+      std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs);
+    void checkInputs(CallInst* TCI, argsT& args,
       const BoxList& boxes, Function* specF);
-    void mergePtrInputs(CallInst* TCI,
-      argsT& args,
-      const BoxList& boxes, BoxList& ptrBoxes,
-      ReadInputs& ri);
-    void execInputFunc(CallInst* TCI,
-      argsT& args,
-      const BoxList& boxes, const BoxList& ptrBoxes,
-      Function* srcF, ReadInputs& ri);
+    void execInputFunc(CallInst* TCI, argsT& args,
+      std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs,
+      BoxList boxes, Function* srcF);
+    void analyzeSpecs(Function* specF,
+      std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs);
+    std::pair<unsigned, unsigned> getOffset(argsT& args,
+      std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs);
 };
 }
 

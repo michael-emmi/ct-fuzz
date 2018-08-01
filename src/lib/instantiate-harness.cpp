@@ -1,6 +1,7 @@
 #include "instantiate-harness.h"
 #include "utils.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
 
 #define ERASE_TCI() TCI->eraseFromParent();
 
@@ -16,6 +17,9 @@ const std::string READ_INPUT_FUNC = "__ct_fuzz_read_inputs";
 const std::string EXEC_FUNC = "__ct_fuzz_exec";
 const std::string MERGE_FUNC = "__ct_fuzz_merge_ptr_inputs";
 const std::string MALLOC_WRAPPER = "__ct_fuzz_malloc_wrapper";
+const std::string POINTER_LENGTH_FUNC = "__ct_fuzz_ptr_len";
+const std::string STDIN_READ_FUNC = "__ct_fuzz_stdin_read";
+const std::string MEMCPY_WRAPPER = "__ct_fuzz_memcpy_wrapper";
 
 CallInst* getCallToReadInputsFunc(Module& M) {
   return getCallToFuncOnce(getFunction(M, READ_INPUT_FUNC));
@@ -36,6 +40,25 @@ CallInst* getCallToMergeFunc(Module& M) {
 std::vector<CallInst*> getPublicInCalls(Module& M) {
   return getCallToFunc(M.getFunction(PUBLIC_IN_FUNC));
 }
+
+std::vector<CallInst*> getPointerLengthCalls(Module& M) {
+  return getCallToFunc(M.getFunction(POINTER_LENGTH_FUNC));
+}
+
+unsigned getArrSizeInBytes(Value* ptr, std::map<Value*, CallInst*>& funcPtrArgInfo) {
+  CallInst* ci = funcPtrArgInfo[ptr];
+  Value* len = ci->getArgOperand(1);
+  Value* maxLen = ci->getArgOperand(2);
+  ConstantInt* cLen = dyn_cast<ConstantInt>(maxLen);
+
+  if (auto tc = dyn_cast<ConstantInt>(len))
+    if(tc->getZExtValue())
+      cLen = tc;
+
+  assert(cLen && "not able to get a constant pointer length");
+  return cLen->getZExtValue()*getTypeSize(
+    cast<PointerType>(ptr->getType())->getElementType());
+}
 }
 
 namespace CTFuzz {
@@ -44,90 +67,8 @@ const cl::opt<std::string> EntryPoint(
   cl::desc("Entry point function name")
 );
 
-Function* InstantiateHarness::buildPublicInHandleFunc(CallInst* CI) {
-  static unsigned counter = 0;
-  Module* M = CI->getModule();
-  auto DL = M->getDataLayout();
-  Type* sizeT = getFirstArg(
-    getFunction(*M, MALLOC_WRAPPER))->getType();
-  Type* T = CI->getArgOperand(0)->getType();
-  std::vector<Type*> ts;
-
-  Function* CF = getFunction(*M, PUBLIC_IN_HANDLE_FUNC);
-
-  for(unsigned i = 0; i < CI->getNumArgOperands(); ++i)
-    ts.push_back(CI->getArgOperand(i)->getType());
-
-  FunctionType* newFT = FunctionType::get(Type::getVoidTy(M->getContext()), ts, false);
-  std::string newFN = PUBLIC_IN_FUNC + "_" + std::to_string(counter);
-  Function* newF = Function::Create(newFT, GlobalValue::InternalLinkage, newFN, M);
-
-  BasicBlock* B = BasicBlock::Create(M->getContext(), "", newF);
-  IRBuilder<> IRB(B);
-
-  // the pointer arg of public value handle function
-  Value* P = nullptr;
-  // the size arg
-  Value* S = nullptr;
-  assert(!T->isAggregateType() && "Doesn't support aggregate types");
-
-  if (!T->isPointerTy()) {
-    // if the argument is not a pointer, create an allocated space,
-    // store its value in, and pass the pointer to the allocated space
-    P = IRB.CreateAlloca(T);
-    IRB.CreateStore(getFirstArg(newF), P);
-    // FIXME: I'm not sure if GetTypeSizeInBits is proper here
-    uint64_t size = DL.getTypeSizeInBits(T) >> 3;
-    S = ConstantInt::get(getSecondArg(CF)->getType(), size);
-  } else {
-    P = getFirstArg(newF);
-    // note that the second argument for __ct_fuzz_public_in function is
-    // the number of elements in this array
-    S = getByteSizeInSizeT(IRB, DL,
-      getSecondArg(newF), cast<PointerType>(T)->getElementType(), sizeT);
-  }
-
-  IRB.CreateCall(CF, {IRB.CreateBitCast(P, CF->arg_begin()->getType()), S});
-
-  IRB.CreateRetVoid();
-
-  counter++;
-  return newF;
-}
-
-void InstantiateHarness::insertPublicInHandleFuncs(Module& M) {
-  auto cis = getPublicInCalls(M);
-  std::map<CallInst*, Function*> bindings;
-
-  // note that we create a new function for each call site
-  // which could be implemented in a per-type way
-  // for the simplicity of the implementations, I don't do it
-  for (auto ci : cis) {
-    auto F = buildPublicInHandleFunc(ci);
-    bindings[ci] = F;
-  }
-
-  // replace __ct_fuzz_public_in calls with instrumented ones
-  for (auto& binding: bindings) {
-    CallInst* oc = binding.first;
-    Function* f = binding.second;
-    std::vector<Value*> args;
-    for (unsigned i = 0; i < oc->getNumArgOperands(); ++i)
-      args.push_back(oc->getArgOperand(i));
-    auto ci = CallInst::Create(f, args, "", oc);
-    oc->replaceAllUsesWith(ci);
-  }
-
-  // clean up
-  for (auto& binding: bindings)
-    binding.first->eraseFromParent();
-
-  auto PF = M.getFunction(PUBLIC_IN_FUNC);
-  if (PF)
-    PF->eraseFromParent();
-}
-
 inline AllocaInst* createArray(IRBuilder<>& IRB, Type* T) {
+  T = T->isPointerTy()? T : PointerType::getUnqual(T);
   return IRB.CreateAlloca(ArrayType::get(T, 2));
 }
 
@@ -139,90 +80,128 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, idx_t idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), createIdx(AI, idx)});
 }
 
+inline Value* createGEP(IRBuilder<>& IRB, Value* base, unsigned offset) {
+  return IRB.CreateGEP(base, {createIdx(base, offset)});
+}
+
 inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
   return IRB.CreateGEP(AI, {createIdx(AI, 0), idx});
 }
 
-void InstantiateHarness::readInputs(CallInst* TCI,
-  argsT& args, BoxList& boxes, ReadInputs& ri) {
+BoxList InstantiateHarness::readInputs(CallInst* TCI, argsT& args,
+  std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs) {
   IRBuilder<> IRB(TCI);
+  Module* M = TCI->getModule();
+  auto DL = M->getDataLayout();
+  Function* mallocF = getFunction(*M, MALLOC_WRAPPER);
+  Function* stdinRF = getFunction(*M, STDIN_READ_FUNC);
 
-  // create two copies of input variables and read values into them
+  BoxList ret;
+
+  auto p = getOffset(args, funcPtrArgInfo, publicArgs);
+  unsigned first = p.first;
+  unsigned all = p.second;
+
+  // create a space and read from stdin
   for (auto& arg : args)
-    boxes.push_back(createArray(IRB, arg.getType()));
+    ret.push_back(createArray(IRB, arg.getType()));
 
-  // encoding of pointer arguments
-  // the first two bytes are element length (*not byte size*)
-  // then read (element size * element length) bytes
-  auto GI = [&IRB, &args, &boxes, &ri](idx_t idx) -> void {
-    unsigned i = 0;
-    for (auto& arg : args) {
-      Type* T = arg.getType();
-      IRB.CreateCall(ri.getReadFunc(T), {getElement(IRB, boxes[i], idx)});
-      ++i;
+  Constant* Size = ConstantInt::get(getFirstArg(mallocF)->getType(), all);
+  Value* mallocC = IRB.CreateCall(mallocF, {Size});
+  IRB.CreateCall(stdinRF, {mallocC, Size});
+
+  mallocC = IRB.CreateBitCast(mallocC, Type::getInt8PtrTy(M->getContext()));
+  unsigned firstOffset = 0;
+  unsigned secondOffset = first;
+  unsigned i = 0;
+  // create two copies of input variables and `read` values into them
+  for (auto& arg : args) {
+    Value* arg1_ptr = nullptr;
+    Value* arg2_ptr = nullptr;
+    Value* gep1 = getElement(IRB, ret[i], (idx_t)0);
+    Value* gep2 = getElement(IRB, ret[i], 1);
+
+    Type* T = arg.getType();
+    bool isPointer = T->isPointerTy();
+    PointerType* PT = isPointer? cast<PointerType>(T) : PointerType::getUnqual(T);
+
+    bool isPublic = publicArgs.count(&arg) > 0;
+    unsigned tSize = isPointer?
+      getArrSizeInBytes(&arg, funcPtrArgInfo) : getTypeSize(T);
+
+    if (isPublic)
+      arg2_ptr = arg1_ptr = IRB.CreateBitCast(createGEP(IRB, mallocC, firstOffset), PT);
+    else {
+      arg1_ptr = IRB.CreateBitCast(createGEP(IRB, mallocC, firstOffset), PT);
+      arg2_ptr = IRB.CreateBitCast(createGEP(IRB, mallocC, secondOffset), PT);
+      secondOffset += tSize;
     }
-  };
 
-  GI(0); GI(1);
+    firstOffset += tSize;
+
+    IRB.CreateStore(arg1_ptr, gep1);
+    IRB.CreateStore(arg2_ptr, gep2);
+    ++i;
+  }
+
   ERASE_TCI()
+  return ret;
 }
 
-void InstantiateHarness::checkInputs(CallInst* TCI,
+void InstantiateHarness::checkInputs(CallInst* TCI, argsT& args,
   const BoxList& boxes, Function* specF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
   std::vector<Value*> argVs;
+  unsigned i = 0;
 
-  for (unsigned i = 0; i < specF->arg_size(); ++i)
-    argVs.push_back(IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
+  for (auto& arg : args) {
+    if (arg.getType()->isPointerTy())
+      argVs.push_back(IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
+    else
+      argVs.push_back(IRB.CreateLoad(IRB.CreateLoad(getElement(IRB, boxes[i], idx))));
+    ++i;
+  }
 
   IRB.CreateCall(specF, argVs);
   ERASE_TCI()
 }
 
-void InstantiateHarness::mergePtrInputs(CallInst* TCI,
-  argsT& args, const BoxList& boxes, BoxList& ptrBoxes, ReadInputs& ri) {
-  IRBuilder<> IRB(TCI);
-  unsigned i = 0;
-  for (auto& arg : args) {
-    Type* T = arg.getType();
-    if (T->isPointerTy()) {
-      AllocaInst* AI = IRB.CreateAlloca(T);
-      ptrBoxes.push_back(AI);
-      IRB.CreateCall(ri.getMergeFunc(T),
-        {AI,
-        getElement(IRB, boxes[i], (idx_t)0),
-        getElement(IRB, boxes[i], (idx_t)1)});
-    }
-    ++i;
-  }
-  ERASE_TCI()
-}
-
 // NOTE: we're in a forked process
-void InstantiateHarness::execInputFunc(CallInst* TCI,
-  argsT& args, const BoxList& boxes, const BoxList& ptrBoxes,
-  Function* srcF, ReadInputs& ri) {
+void InstantiateHarness::execInputFunc(CallInst* TCI, argsT& args,
+  std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs, BoxList boxes, Function* srcF) {
   IRBuilder<> IRB(TCI);
+  Module* M = TCI->getModule();
+  Function* mallocF = getFunction(*M, MALLOC_WRAPPER);
+  Function* memcpyF = getFunction(*M, MEMCPY_WRAPPER);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
   std::vector<Value*> argVs;
 
   unsigned i = 0;
-  unsigned ptr_i = 0;
+
   for (auto& arg : args) {
     Type* T = arg.getType();
     auto valueP = boxes[i];
     if (!T->isPointerTy())
-      argVs.push_back(IRB.CreateLoad(getElement(IRB, valueP, idx)));
+      argVs.push_back(IRB.CreateLoad(
+        IRB.CreateLoad(getElement(IRB, valueP, idx))));
     else {
-      // deep copy
-      auto PP = ptrBoxes[ptr_i];
-      IRB.CreateCall(ri.getCopyFunc(T),
-        {PP, getElement(IRB, valueP, idx)});
-      argVs.push_back(IRB.CreateLoad(PP));
-      ++ptr_i;
+      bool isPublic = publicArgs.count(&arg) > 0;
+      if (!isPublic) {
+        // we have to copy the two arrays here otherwise we would
+        // end up having two arrays having distinct addresses
+        Constant* Size = ConstantInt::get(getFirstArg(mallocF)->getType(),
+          getArrSizeInBytes(&arg, funcPtrArgInfo));
+        Value* mallocC = IRB.CreateCall(mallocF, {Size});
+        IRB.CreateCall(memcpyF,
+          {IRB.CreateBitCast(mallocC, getFirstArg(memcpyF)->getType()),
+          IRB.CreateBitCast(IRB.CreateLoad(getElement(IRB, valueP, idx)), getSecondArg(memcpyF)->getType()),
+          Size});
+        argVs.push_back(IRB.CreateBitCast(mallocC, T));
+      } else
+        argVs.push_back(IRB.CreateLoad(getElement(IRB, valueP, idx)));
     }
     ++i;
   }
@@ -232,30 +211,87 @@ void InstantiateHarness::execInputFunc(CallInst* TCI,
   ERASE_TCI()
 }
 
+std::pair<unsigned, unsigned> InstantiateHarness::getOffset(argsT& args,
+  std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs) {
+  unsigned first = 0;
+  unsigned second = 0;
+  for (auto& arg : args) {
+    unsigned argOffset = 0;
+
+    if (auto pt = dyn_cast<PointerType>(arg.getType()))
+      argOffset = getArrSizeInBytes(&arg, funcPtrArgInfo);
+    else {
+      assert(arg.getType()->isIntegerTy() && "floating-point types in crypto code?");
+      argOffset = getTypeSize(arg.getType());
+    }
+
+    first += argOffset;
+    if (!publicArgs.count(&arg))
+      second += argOffset;
+  }
+  return std::make_pair(first, first+second);
+}
+
+void InstantiateHarness::analyzeSpecs(Function* specF, std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs) {
+  std::vector<CallInst*> ptrLenCalls = getPointerLengthCalls(*specF->getParent());
+  std::vector<CallInst*> publicInCalls = getPublicInCalls(*specF->getParent());
+  std::set<Value*> funcPtrArgs;
+  std::set<Value*> funcArgs;
+
+  for (auto& arg : specF->args()) {
+    if (arg.getType()->isPointerTy())
+      funcPtrArgs.insert(&arg);
+    funcArgs.insert(&arg);
+  }
+
+  for (auto ptrLenCall : ptrLenCalls) {
+    Value* arg = getFuncArgFromCallArg(ptrLenCall->getArgOperand(0));
+    assert(funcPtrArgs.count(arg) == 1 && "constrained value is not a pointer argument");
+    funcPtrArgInfo[arg] = ptrLenCall;
+  }
+
+  for (auto publicInCall : publicInCalls) {
+    Value* arg = getFuncArgFromCallArg(publicInCall->getArgOperand(0));
+    assert(funcArgs.count(arg) == 1 && "public in value is not an argument");
+    publicArgs.insert(arg);
+  }
+
+  auto args = specF->args();
+  auto p = getOffset(args, funcPtrArgInfo, publicArgs);
+
+  errs() << "half offset: " << p.first;
+  errs() << ", all offset: " << p.second;
+  errs() << "\n";
+
+  for (auto& info : funcPtrArgInfo) {
+    Value* arg = info.first;
+    CallInst* ci = info.second;
+    errs() << "arg: " << *arg;
+    errs() << " info: " << *ci;
+    errs() << "\n";
+  }
+
+  //for (auto e : ptrLenCalls)
+  //  e->eraseFromParent();
+  for (auto e : publicInCalls)
+    e->eraseFromParent();
+}
+
 bool InstantiateHarness::runOnModule(Module& M) {
   Function* srcF = getFunction(M, EntryPoint);
   Function* specF = getFunction(M, SPEC_FUNC_PREFIX+"_"+EntryPoint);
-  ReadInputs ri(&M);
+  std::map<Value*, CallInst*> funcPtrArgInfo;
+  std::set<Value*> publicArgs;
+  analyzeSpecs(specF, funcPtrArgInfo, publicArgs);
 
-  // this function instruments __ct_fuzz_public_in calls such that
-  // the value passed to the these calls are either recorded or checked
-  // via calling public_value_handle functions
-  insertPublicInHandleFuncs(M);
+  auto args = specF->args();
+  auto boxes = readInputs(getCallToReadInputsFunc(M), args, funcPtrArgInfo, publicArgs);
+  checkInputs(getCallToSpecFunc(M), args, boxes, specF);
+  execInputFunc(getCallToExecFunc(M), args, funcPtrArgInfo, publicArgs, boxes, srcF);
 
-  // boxes is a pair of pointers
-  // the first element is a pointer to the function argument
-  // the second element is a pointer to the element length
-  // if the argument is not a pointer, then the second element is nullptr
-  BoxList boxes;
-  BoxList ptrBoxes;
-  auto args = srcF->args();
-  readInputs(getCallToReadInputsFunc(M),
-    args, boxes, ri);
-  checkInputs(getCallToSpecFunc(M), boxes, specF);
-  mergePtrInputs(getCallToMergeFunc(M),
-    args, boxes, ptrBoxes, ri);
-  execInputFunc(getCallToExecFunc(M),
-    args, boxes, ptrBoxes, srcF, ri);
+  // clean up
+  for (auto& t : funcPtrArgInfo)
+    t.second->eraseFromParent();
 
   return false;
 }
