@@ -1,7 +1,7 @@
 #include "instantiate-harness.h"
-#include "utils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include <cassert>
 
 #define ERASE_TCI() TCI->eraseFromParent();
 
@@ -33,10 +33,6 @@ CallInst* getCallToExecFunc(Module& M) {
   return getCallToFuncOnce(getFunction(M, EXEC_FUNC));
 }
 
-CallInst* getCallToMergeFunc(Module& M) {
-  return getCallToFuncOnce(getFunction(M, MERGE_FUNC));
-}
-
 std::vector<CallInst*> getPublicInCalls(Module& M) {
   return getCallToFunc(M.getFunction(PUBLIC_IN_FUNC));
 }
@@ -45,20 +41,6 @@ std::vector<CallInst*> getPointerLengthCalls(Module& M) {
   return getCallToFunc(M.getFunction(POINTER_LENGTH_FUNC));
 }
 
-unsigned getArrSizeInBytes(Value* ptr, std::map<Value*, CallInst*>& funcPtrArgInfo) {
-  CallInst* ci = funcPtrArgInfo[ptr];
-  Value* len = ci->getArgOperand(1);
-  Value* maxLen = ci->getArgOperand(2);
-  ConstantInt* cLen = dyn_cast<ConstantInt>(maxLen);
-
-  if (auto tc = dyn_cast<ConstantInt>(len))
-    if(tc->getZExtValue())
-      cLen = tc;
-
-  assert(cLen && "not able to get a constant pointer length");
-  return cLen->getZExtValue()*getTypeSize(
-    cast<PointerType>(ptr->getType())->getElementType());
-}
 }
 
 namespace CTFuzz {
@@ -89,7 +71,7 @@ inline Value* getElement(IRBuilder<>& IRB, AllocaInst* AI, Value* idx) {
 }
 
 BoxList InstantiateHarness::readInputs(CallInst* TCI, argsT& args,
-  std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs) {
+  LengthBindings& LB, std::set<Value*>& publicArgs) {
   IRBuilder<> IRB(TCI);
   Module* M = TCI->getModule();
   auto DL = M->getDataLayout();
@@ -98,7 +80,7 @@ BoxList InstantiateHarness::readInputs(CallInst* TCI, argsT& args,
 
   BoxList ret;
 
-  auto p = getOffset(args, funcPtrArgInfo, publicArgs);
+  auto p = getOffset(args, LB, publicArgs);
   unsigned first = p.first;
   unsigned all = p.second;
 
@@ -127,7 +109,7 @@ BoxList InstantiateHarness::readInputs(CallInst* TCI, argsT& args,
 
     bool isPublic = publicArgs.count(&arg) > 0;
     unsigned tSize = isPointer?
-      getArrSizeInBytes(&arg, funcPtrArgInfo) : getTypeSize(T);
+      LB.getSizeInBytes(&arg) : getTypeSize(T);
 
     if (isPublic)
       arg2_ptr = arg1_ptr = IRB.CreateBitCast(createGEP(IRB, mallocC, firstOffset), PT);
@@ -170,7 +152,7 @@ void InstantiateHarness::checkInputs(CallInst* TCI, argsT& args,
 
 // NOTE: we're in a forked process
 void InstantiateHarness::execInputFunc(CallInst* TCI, argsT& args,
-  std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs, BoxList boxes, Function* srcF) {
+  LengthBindings& LB, std::set<Value*>& publicArgs, BoxList boxes, Function* srcF) {
   IRBuilder<> IRB(TCI);
   Module* M = TCI->getModule();
   Function* mallocF = getFunction(*M, MALLOC_WRAPPER);
@@ -184,16 +166,24 @@ void InstantiateHarness::execInputFunc(CallInst* TCI, argsT& args,
   for (auto& arg : args) {
     Type* T = arg.getType();
     auto valueP = boxes[i];
-    if (!T->isPointerTy())
-      argVs.push_back(IRB.CreateLoad(
-        IRB.CreateLoad(getElement(IRB, valueP, idx))));
-    else {
+    if (!T->isPointerTy()) {
+      if (LB.isLenArg(&arg)) {
+        unsigned moduloSize = LB.getModuloLen(&arg);
+        argVs.push_back(IRB.CreateURem(
+          IRB.CreateLoad(
+            IRB.CreateLoad(getElement(IRB, valueP, idx))),
+          ConstantInt::get(T, moduloSize)));
+      } else
+        argVs.push_back(IRB.CreateLoad(
+          IRB.CreateLoad(getElement(IRB, valueP, idx))));
+
+    } else {
       bool isPublic = publicArgs.count(&arg) > 0;
       if (!isPublic) {
         // we have to copy the two arrays here otherwise we would
         // end up having two arrays having distinct addresses
         Constant* Size = ConstantInt::get(getFirstArg(mallocF)->getType(),
-          getArrSizeInBytes(&arg, funcPtrArgInfo));
+          LB.getSizeInBytes(&arg));
         Value* mallocC = IRB.CreateCall(mallocF, {Size});
         IRB.CreateCall(memcpyF,
           {IRB.CreateBitCast(mallocC, getFirstArg(memcpyF)->getType()),
@@ -212,14 +202,14 @@ void InstantiateHarness::execInputFunc(CallInst* TCI, argsT& args,
 }
 
 std::pair<unsigned, unsigned> InstantiateHarness::getOffset(argsT& args,
-  std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs) {
+  LengthBindings& LB, std::set<Value*>& publicArgs) {
   unsigned first = 0;
   unsigned second = 0;
   for (auto& arg : args) {
     unsigned argOffset = 0;
 
     if (auto pt = dyn_cast<PointerType>(arg.getType()))
-      argOffset = getArrSizeInBytes(&arg, funcPtrArgInfo);
+      argOffset = LB.getSizeInBytes(&arg);
     else {
       assert(arg.getType()->isIntegerTy() && "floating-point types in crypto code?");
       argOffset = getTypeSize(arg.getType());
@@ -232,7 +222,7 @@ std::pair<unsigned, unsigned> InstantiateHarness::getOffset(argsT& args,
   return std::make_pair(first, first+second);
 }
 
-void InstantiateHarness::analyzeSpecs(Function* specF, std::map<Value*, CallInst*>& funcPtrArgInfo, std::set<Value*>& publicArgs) {
+void InstantiateHarness::analyzeSpecs(Function* specF, LengthBindings& LB, std::set<Value*>& publicArgs) {
   std::vector<CallInst*> ptrLenCalls = getPointerLengthCalls(*specF->getParent());
   std::vector<CallInst*> publicInCalls = getPublicInCalls(*specF->getParent());
   std::set<Value*> funcPtrArgs;
@@ -247,7 +237,7 @@ void InstantiateHarness::analyzeSpecs(Function* specF, std::map<Value*, CallInst
   for (auto ptrLenCall : ptrLenCalls) {
     Value* arg = getFuncArgFromCallArg(ptrLenCall->getArgOperand(0));
     assert(funcPtrArgs.count(arg) == 1 && "constrained value is not a pointer argument");
-    funcPtrArgInfo[arg] = ptrLenCall;
+    LB.addBinding(ptrLenCall);
   }
 
   for (auto publicInCall : publicInCalls) {
@@ -256,6 +246,7 @@ void InstantiateHarness::analyzeSpecs(Function* specF, std::map<Value*, CallInst
     publicArgs.insert(arg);
   }
 
+  /*
   auto args = specF->args();
   auto p = getOffset(args, funcPtrArgInfo, publicArgs);
 
@@ -273,6 +264,7 @@ void InstantiateHarness::analyzeSpecs(Function* specF, std::map<Value*, CallInst
 
   //for (auto e : ptrLenCalls)
   //  e->eraseFromParent();
+  */
   for (auto e : publicInCalls)
     e->eraseFromParent();
 }
@@ -280,18 +272,20 @@ void InstantiateHarness::analyzeSpecs(Function* specF, std::map<Value*, CallInst
 bool InstantiateHarness::runOnModule(Module& M) {
   Function* srcF = getFunction(M, EntryPoint);
   Function* specF = getFunction(M, SPEC_FUNC_PREFIX+"_"+EntryPoint);
-  std::map<Value*, CallInst*> funcPtrArgInfo;
   std::set<Value*> publicArgs;
-  analyzeSpecs(specF, funcPtrArgInfo, publicArgs);
+  LengthBindings LB;
+
+  analyzeSpecs(specF, LB, publicArgs);
 
   auto args = specF->args();
-  auto boxes = readInputs(getCallToReadInputsFunc(M), args, funcPtrArgInfo, publicArgs);
+  auto boxes = readInputs(getCallToReadInputsFunc(M), args, LB, publicArgs);
   checkInputs(getCallToSpecFunc(M), args, boxes, specF);
-  execInputFunc(getCallToExecFunc(M), args, funcPtrArgInfo, publicArgs, boxes, srcF);
+  execInputFunc(getCallToExecFunc(M), args, LB, publicArgs, boxes, srcF);
 
   // clean up
-  for (auto& t : funcPtrArgInfo)
-    t.second->eraseFromParent();
+  //for (auto& t : funcPtrArgInfo)
+  //  t.second->eraseFromParent();
+  LB.clean_up();
 
   return false;
 }

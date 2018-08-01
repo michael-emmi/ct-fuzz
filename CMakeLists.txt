@@ -54,7 +54,7 @@ execute_process(
   OUTPUT_STRIP_TRAILING_WHITESPACE
 )
 
-string(REPLACE "-fvisibility-inlines-hidden" "" LLVM_CXXFLAGS "${LLVM_CXXFLAGS}")
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 execute_process(
   COMMAND ${LLVM_CONFIG_EXECUTABLE} --libs
