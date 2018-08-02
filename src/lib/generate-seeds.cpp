@@ -130,7 +130,7 @@ void GenerateSeeds::generateSeedForVT(Value* V, Type* T, std::ostream& ss) {
       && "type mismatch shouldn't happen at this point");
     unsigned len = isArr ?
       cast<ArrayType>(C->getType())->getNumElements() : 1;
-    printInt(len, 2, ss);
+    //printInt(len, 2, ss);
     for (unsigned i = 0; i < len; ++i)
       generateSeedForVT(
         isArr? C->getAggregateElement(i) : C,
