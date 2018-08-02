@@ -105,7 +105,7 @@ class InstantiateHarness: public ModulePass {
     BoxList readInputs(CallInst* TCI, argsT& args,
       LengthBindings& LB, std::set<Value*>& publicArgs);
     void checkInputs(CallInst* TCI, argsT& args,
-      const BoxList& boxes, Function* specF);
+      LengthBindings& LB, const BoxList& boxes, Function* specF);
     void execInputFunc(CallInst* TCI, argsT& args,
       LengthBindings& LB, std::set<Value*>& publicArgs,
       BoxList boxes, Function* srcF);

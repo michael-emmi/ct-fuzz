@@ -131,7 +131,7 @@ BoxList InstantiateHarness::readInputs(CallInst* TCI, argsT& args,
 }
 
 void InstantiateHarness::checkInputs(CallInst* TCI, argsT& args,
-  const BoxList& boxes, Function* specF) {
+  LengthBindings& LB, const BoxList& boxes, Function* specF) {
   IRBuilder<> IRB(TCI);
 
   Value* idx = IRB.CreateZExt(TCI->getOperand(0), IntegerType::get(TCI->getContext(), 64));
@@ -139,10 +139,19 @@ void InstantiateHarness::checkInputs(CallInst* TCI, argsT& args,
   unsigned i = 0;
 
   for (auto& arg : args) {
-    if (arg.getType()->isPointerTy())
+    Type* T = arg.getType();
+    if (T->isPointerTy())
       argVs.push_back(IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
-    else
-      argVs.push_back(IRB.CreateLoad(IRB.CreateLoad(getElement(IRB, boxes[i], idx))));
+    else {
+      Value* v = IRB.CreateLoad(
+        IRB.CreateLoad(getElement(IRB, boxes[i], idx)));
+      if (LB.isLenArg(&arg)) {
+        unsigned moduloSize = LB.getModuloLen(&arg);
+        v = IRB.CreateURem(v,
+          ConstantInt::get(T, moduloSize));
+      }
+      argVs.push_back(v);
+    }
     ++i;
   }
 
@@ -279,7 +288,7 @@ bool InstantiateHarness::runOnModule(Module& M) {
 
   auto args = specF->args();
   auto boxes = readInputs(getCallToReadInputsFunc(M), args, LB, publicArgs);
-  checkInputs(getCallToSpecFunc(M), args, boxes, specF);
+  checkInputs(getCallToSpecFunc(M), args, LB, boxes, specF);
   execInputFunc(getCallToExecFunc(M), args, LB, publicArgs, boxes, srcF);
 
   // clean up
