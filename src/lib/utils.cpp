@@ -81,10 +81,12 @@ static Value* stripTypePreservingCasts(Value* V) {
 Value* getFuncArgFromCallArg(Value* callArg) {
   callArg = stripTypePreservingCasts(callArg);
   if (auto li = dyn_cast<LoadInst>(callArg)) {
-    for (auto U: li->getPointerOperand()->users())
+    Value* ai = li->getPointerOperand();
+    for (auto U: ai->users())
       if (auto si = dyn_cast<StoreInst>(U))
-        return si->getPointerOperand() == U ? si->getValueOperand() : nullptr;
-    return nullptr;
+        if (si->getPointerOperand() == ai)
+          return si->getValueOperand();
+    llvm_unreachable("must have an argument here");
   } else
     return callArg;
 }
