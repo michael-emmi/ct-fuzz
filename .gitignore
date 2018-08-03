@@ -2,6 +2,7 @@
 *.ll
 *.o
 *.so
+a.out
 
 afl/*
 build/*
