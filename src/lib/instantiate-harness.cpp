@@ -148,7 +148,7 @@ void InstantiateHarness::checkInputs(CallInst* TCI, argsT& args,
       if (LB.isLenArg(&arg)) {
         unsigned moduloSize = LB.getModuloLen(&arg);
         v = IRB.CreateURem(v,
-          ConstantInt::get(T, moduloSize));
+          ConstantInt::get(T, moduloSize+1));
       }
       argVs.push_back(v);
     }
@@ -181,7 +181,7 @@ void InstantiateHarness::execInputFunc(CallInst* TCI, argsT& args,
         argVs.push_back(IRB.CreateURem(
           IRB.CreateLoad(
             IRB.CreateLoad(getElement(IRB, valueP, idx))),
-          ConstantInt::get(T, moduloSize)));
+          ConstantInt::get(T, moduloSize+1)));
       } else
         argVs.push_back(IRB.CreateLoad(
           IRB.CreateLoad(getElement(IRB, valueP, idx))));
