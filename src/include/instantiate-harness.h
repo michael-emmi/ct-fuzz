@@ -89,7 +89,7 @@ struct LengthBindings {
     llvm_unreachable("not a pointer argument");
   }
 
-  void clean_up() {
+  void eraseBindingsFromParents() {
     for (auto& b : bindings)
       b.CI->eraseFromParent();
   }

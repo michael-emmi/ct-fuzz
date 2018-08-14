@@ -294,7 +294,7 @@ bool InstantiateHarness::runOnModule(Module& M) {
   // clean up
   //for (auto& t : funcPtrArgInfo)
   //  t.second->eraseFromParent();
-  LB.clean_up();
+  LB.eraseBindingsFromParents();
 
   return false;
 }
