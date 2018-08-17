@@ -20,7 +20,8 @@ CallInst* getCallToFuncOnce(Function* F);
 IntegerType* getLenT(LLVMContext& C);
 Constant* getTypeSizeInSizeT(DataLayout& DL, Type* T, Type* sizeT);
 Value* getByteSizeInSizeT(IRBuilder<>& IRB, DataLayout& DL, Value* len, Type* elemT, Type* sizeT);
-
+Value* getFuncArgFromCallArg(Value* callArg);
+unsigned getTypeSize(Type* T);
 }
 
 #endif

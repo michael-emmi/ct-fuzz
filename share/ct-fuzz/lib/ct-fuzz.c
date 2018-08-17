@@ -70,7 +70,7 @@ void NS(main)(void) {
   for (RUN_ID = 0; RUN_ID < 2; ++RUN_ID)
     NS(spec)(RUN_ID);
 
-  NS(merge_ptr_inputs)();
+  //NS(merge_ptr_inputs)();
 
   for (RUN_ID = 0; RUN_ID < 2; ++RUN_ID) {
     pid_t pid = fork();

@@ -38,7 +38,7 @@ std::vector<CallInst*> getCallToFunc(Function* F) {
       else if (isa<BitCastInst>(U))
         addCallToF(U);
       else if (auto ce = dyn_cast<ConstantExpr>(U))
-        if (isa<BitCastInst>(ce->getAsInstruction()))
+        if (ce->getOpcode() == Instruction::BitCast)
           addCallToF(U);
     }
   };
@@ -63,5 +63,36 @@ Constant* getTypeSizeInSizeT(DataLayout& DL, Type* T, Type* sizeT) {
 Value* getByteSizeInSizeT(IRBuilder<>& IRB, DataLayout& DL, Value* len, Type* elemT, Type* sizeT) {
   assert(!elemT->isVoidTy() && "what's the size of void type?");
   return IRB.CreateMul(IRB.CreateZExt(len, sizeT), getTypeSizeInSizeT(DL, elemT, sizeT));
+}
+
+static Value* stripTypePreservingCasts(Value* V) {
+  if (auto I = dyn_cast<CastInst>(V)) {
+    if (isa<BitCastInst>(I) || I->isIntegerCast())
+      return I->getOperand(0);
+  } else if (auto CE = dyn_cast<ConstantExpr>(V)) {
+    auto opCode = CE->getOpcode();
+    if (opCode == Instruction::ZExt || opCode == Instruction::SExt ||
+      opCode == Instruction::Trunc || opCode == Instruction::BitCast)
+      return CE->getOperand(0);
+  }
+  return V;
+}
+
+Value* getFuncArgFromCallArg(Value* callArg) {
+  callArg = stripTypePreservingCasts(callArg);
+  if (auto li = dyn_cast<LoadInst>(callArg)) {
+    Value* ai = li->getPointerOperand();
+    for (auto U: ai->users())
+      if (auto si = dyn_cast<StoreInst>(U))
+        if (si->getPointerOperand() == ai)
+          return si->getValueOperand();
+    llvm_unreachable("must have an argument here");
+  } else
+    return callArg;
+}
+
+unsigned getTypeSize(Type* T) {
+  assert(T->isIntegerTy() && "floating-point types in crypto code?");
+  return cast<IntegerType>(T)->getBitWidth() >> 3;
 }
 }

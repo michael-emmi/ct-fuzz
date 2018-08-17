@@ -19,10 +19,20 @@ CT_FUZZ_SPEC(void, foo, int a) {
 }
 ```
 
-We use `__ct_fuzz_public_in` function to annotate public information. Arguments of pointer types are assumed to be public. However, the elements they point to are not necessarily made public. To annotate public pointer elements, call function `__ct_fuzz_public_in` with two arguments, the first argument being the pointer and the second being the number of pointer elements. For example,
+We use `__ct_fuzz_public_in` function to annotate public information. Values of the arguments of pointer types are assumed to be public. However, the elements they point to are not necessarily made public. To annotate public pointer contents, simply call `__ct_fuzz_public_in` with the pointer argument (see the following example). We assume that all the elements are either public or private.
 ```C
 CT_FUZZ_SPEC(void, foo, char* a) {
-  __ct_fuzz_public_in(a, strlen(a));
+  __ct_fuzz_public_in(a);
+}
+```
+## Pointer Length Annotations
+`ct-fuzz` requires the users to annotate pointer arguments with length information. The function used for this type of annotation is `__ct_fuzz_ptr_len(char* ptr, unsigned short len, unsigned short max_len)`. Argument `len` is either a constant or an argument of the function to fuzz while argument `max_len` must be a constant. When `len` is a constant, it has to be the same value with `max_len`. Calls to this function are placed inside the specification function. For example,
+```C
+CT_FUZZ_SPEC(void, foo, int* ptr, unsigned len) {
+  __ct_fuzz_ptr_len(ptr, len, 16);
+}
+CT_FUZZ_SPEC(void, foo, int* ptr) {
+  __ct_fuzz_ptr_len(ptr, 8, 8);
 }
 ```
 ## Seed Generation Annotations
@@ -48,8 +58,6 @@ SEED_UNIT(short, B, 42)
 PRODUCE(foo, A, B, 24)
 ```
 ## Special Utility Functions
-Function `__ct_fuzz_array_len` returns the number of elements a pointer argument points to. A pointer to a single element should have length 1.
-
 Macro `CT_FUZZ_ASSUME` is used to place assumptions. If the condition argument doesn't hold, the execution stops.
 
 # Run ct-fuzz

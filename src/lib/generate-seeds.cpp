@@ -71,7 +71,7 @@ Constant* getUnitOrArray(Value* V) {
     cast<ConstantExpr>(V)->isGEPWithNoNotionalOverIndexing()) {
     Constant* CT = cast<Constant>(V);
     GlobalVariable* G = cast<GlobalVariable>(CT->getOperand(0));
-    assert(G->hasInitializer && "current assumption, no?");
+    assert(G->hasInitializer() && "current assumption, no?");
     Constant* C = G->getInitializer();
     for (unsigned i = 2; i < CT->getNumOperands() - 1; ++i) {
       auto idx = getConstantIntInfo(cast<ConstantInt>(CT->getOperand(i))).first;
@@ -126,11 +126,11 @@ void GenerateSeeds::generateSeedForVT(Value* V, Type* T, std::ostream& ss) {
     assert(isa<Constant>(V) && "V should be a constant here");
     Constant* C = getUnitOrArray(cast<Constant>(V));
     bool isArr = C->getType()->isArrayTy();
-    assert(isArr? cast<ArrayType>(C->getType())->getElementType() : C->getType() == et
+    assert((isArr? cast<ArrayType>(C->getType())->getElementType() : C->getType()) == et
       && "type mismatch shouldn't happen at this point");
     unsigned len = isArr ?
       cast<ArrayType>(C->getType())->getNumElements() : 1;
-    printInt(len, 2, ss);
+    //printInt(len, 2, ss);
     for (unsigned i = 0; i < len; ++i)
       generateSeedForVT(
         isArr? C->getAggregateElement(i) : C,

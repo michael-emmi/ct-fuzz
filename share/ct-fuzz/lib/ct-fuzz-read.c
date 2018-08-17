@@ -35,8 +35,6 @@ len_t NS(get_arr_len)(const char* ptr) {
 }
 
 void NS(stdin_read)(void* buf, size_t size) {
-  if (size > READ_BYTES_LIMIT)
-    exit(READ_BYTES_LIMIT);
   // not sure if the if condition is required.
   // it's added just to make sure nothing bad happens.
   if (size)
