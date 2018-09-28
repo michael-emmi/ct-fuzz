@@ -18,6 +18,7 @@ typedef unsigned long COUNTER_T;
 HASH_T* MONITORS;
 COUNTER_T* COUNTERS;
 IDX_T RUN_ID;
+bool START_OB;
 
 void* NS(create_shared_memory)(size_t size) {
   return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_SHARED, 0, 0);
@@ -31,12 +32,14 @@ void NS(initialize_states)() {
 }
 
 static void NS(update_hash)(char* buf, size_t size) {
-  HASH_T* old = &MONITORS[RUN_ID];
-  char temp[sizeof(HASH_T)+size];
-  memcpy(temp, old, sizeof(HASH_T));
-  memcpy(temp+sizeof(HASH_T), buf, size);
-  *old = XXH64((void*)&temp, sizeof(temp), 0);
-  COUNTERS[RUN_ID]++;
+  if (START_OB) {
+    HASH_T* old = &MONITORS[RUN_ID];
+    char temp[sizeof(HASH_T)+size];
+    memcpy(temp, old, sizeof(HASH_T));
+    memcpy(temp+sizeof(HASH_T), buf, size);
+    *old = XXH64((void*)&temp, sizeof(temp), 0);
+    COUNTERS[RUN_ID]++;
+  }
 }
 
 void NS(update_monitor_by_cond)(bool cond, char* fn, num_t ln, num_t cn) {

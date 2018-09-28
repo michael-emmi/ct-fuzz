@@ -64,6 +64,7 @@ void NS(read_inputs)(void);
 void NS(merge_ptr_inputs)(void);
 
 void NS(main)(void) {
+  START_OB = true;
   NS(initialize)();
   NS(read_inputs)();
 

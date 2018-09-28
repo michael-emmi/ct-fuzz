@@ -13,6 +13,7 @@ typedef unsigned char IDX_T;
 typedef uint32_t num_t;
 
 extern IDX_T RUN_ID;
+extern bool START_OB;
 
 extern void NS(initialize_states)();
 extern void NS(update_monitor_by_cond)(bool cond, char* fn, num_t ln, num_t cn);
