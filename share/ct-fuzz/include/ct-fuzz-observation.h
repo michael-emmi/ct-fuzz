@@ -16,6 +16,7 @@ extern IDX_T RUN_ID;
 extern bool START_OB;
 
 extern void NS(initialize_states)();
+extern void NS(update_hash)(char* buf, size_t size);
 extern void NS(update_monitor_by_cond)(bool cond, char* fn, num_t ln, num_t cn);
 extern void NS(update_monitor_by_addr)(char* addr, char* fn, num_t ln, num_t cn);
 extern void NS(check_observations)();

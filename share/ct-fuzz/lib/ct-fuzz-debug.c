@@ -3,7 +3,7 @@
 #include "ct-fuzz-observation.h"
 #include "ct-fuzz-debug.h"
 
-static bool DEBUG_ON;
+bool DEBUG_ON;
 
 static void DEBUG_PRINT(char* type, char* value, char* fn, num_t ln, num_t cn) {
   printf("[dbg] [%u] [%s: %u, %u] [%s, %s]\n",
@@ -22,6 +22,14 @@ void NS(dbg_print_addr)(char* addr, char* fn, num_t ln, num_t cn) {
     char s[40];
     sprintf(s, "%lx", (unsigned long)addr);
     DEBUG_PRINT("address", s, fn, ln, cn);
+  }
+}
+
+void NS(dbg_print_cache_access)(char* addr, bool hit, char* fn, num_t ln, num_t cn) {
+  if (DEBUG_ON) {
+    char s[50];
+    sprintf(s, "%lx, %s", (unsigned long)addr, (hit? "hit": "miss"));
+    DEBUG_PRINT("cache access", s, fn, ln, cn);
   }
 }
 

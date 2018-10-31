@@ -1,4 +1,5 @@
-#include "ct-fuzz-cache.h"
+#include "ct-fuzz-observation.h"
+#include "ct-fuzz-debug.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -13,7 +14,6 @@
 #define SET_INDEX_MASK 0x0
 #define BLOCK_NUM_IN_SET 512
 
-
 typedef struct {
   unsigned valid: 1;
   uint64_t tag: TAG_BIT_SIZE; 
@@ -23,10 +23,10 @@ typedef struct {
 cache_line cache[BLOCK_NUM];
 uint64_t rank[SET_NUM];
 
-bool NS(update_cache)(char* ptr) {
+static bool NS(update_cache)(char* ptr) {
   uint64_t addr = (uint64_t)ptr;
   unsigned set_id = (addr >>= BLOCK_BIT_SIZE) & SET_INDEX_MASK;
-  unsigned tag = (addr >>= SET_BIT_SIZE);
+  uint64_t tag = (addr >>= SET_BIT_SIZE);
   unsigned start_block = set_id * ASSOCIATIVITY;
   uint64_t time_stamp = rank[set_id]++;
 
@@ -35,7 +35,8 @@ bool NS(update_cache)(char* ptr) {
     cache_line* line = &cache[start_block+i];
     if (line->tag == tag && line->valid) {
       line->rank = time_stamp;
-      printf("hit: %lu, set: %u, block: %u\n", addr, set_id, start_block+i);
+      if (DEBUG_ON)
+        printf("hit: %lx, set: %u, block: %u\n", addr, set_id, start_block+i);
       return true;
     }
   }
@@ -48,7 +49,8 @@ bool NS(update_cache)(char* ptr) {
       line->valid = 1;
       line->tag = tag;
       line->rank = time_stamp;
-      printf("miss and empty: %lu, set: %u, block: %u\n", addr, set_id, start_block+i);
+      if (DEBUG_ON)
+        printf("miss and empty: %lx, set: %u, block: %u\n", addr, set_id, start_block+i);
       return false;
     }
   }
@@ -63,6 +65,17 @@ bool NS(update_cache)(char* ptr) {
   // kick the loser out
   loser->rank = time_stamp;
   loser->tag = tag;
-  printf("miss and replace: %lu, set: %u, block: %u\n", addr, set_id, loser-cache);
+  if (DEBUG_ON)
+    printf("miss and replace: %lx, set: %u, block: %u\n", addr, set_id, loser-cache);
   return false;
+}
+
+void NS(update_monitor_by_addr)(char* addr, char* fn, num_t ln, num_t cn) {
+  if (START_OB) {
+    START_OB = false;
+    bool hit = NS(update_cache)(addr);
+    NS(dbg_print_cache_access)(addr, hit, fn, ln, cn);
+    NS(update_hash)((char*)&hit, sizeof(bool));
+    START_OB = true;
+  }
 }
