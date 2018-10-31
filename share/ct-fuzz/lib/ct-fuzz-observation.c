@@ -5,6 +5,7 @@
 #include "xxhash.h"
 #include "ct-fuzz-observation.h"
 #include "ct-fuzz-debug.h"
+#include "ct-fuzz-cache.h"
 
 #define STOP_SIGNAL 42
 #define HASH_T TYPE(hash)
@@ -32,24 +33,33 @@ void NS(initialize_states)() {
 }
 
 static void NS(update_hash)(char* buf, size_t size) {
-  if (START_OB) {
-    HASH_T* old = &MONITORS[RUN_ID];
-    char temp[sizeof(HASH_T)+size];
-    memcpy(temp, old, sizeof(HASH_T));
-    memcpy(temp+sizeof(HASH_T), buf, size);
-    *old = XXH64((void*)&temp, sizeof(temp), 0);
-    COUNTERS[RUN_ID]++;
-  }
+  HASH_T* old = &MONITORS[RUN_ID];
+  char temp[sizeof(HASH_T)+size];
+  memcpy(temp, old, sizeof(HASH_T));
+  memcpy(temp+sizeof(HASH_T), buf, size);
+  *old = XXH64((void*)&temp, sizeof(temp), 0);
+  COUNTERS[RUN_ID]++;
 }
 
 void NS(update_monitor_by_cond)(bool cond, char* fn, num_t ln, num_t cn) {
-  NS(dbg_print_cond)(cond, fn, ln, cn);
-  NS(update_hash)((char*)&cond, sizeof(bool));
+  if (START_OB) {
+    START_OB = false;
+    NS(dbg_print_cond)(cond, fn, ln, cn);
+    NS(update_hash)((char*)&cond, sizeof(bool));
+    START_OB = true;
+  }
 }
 
 void NS(update_monitor_by_addr)(char* addr, char* fn, num_t ln, num_t cn) {
-  NS(dbg_print_addr)(addr, fn, ln, cn);
-  NS(update_hash)((char*)&addr, sizeof(char*));
+  if (START_OB) {
+    START_OB = false;
+    //NS(dbg_print_addr)(addr, fn, ln, cn);
+    bool hit = NS(update_cache)(addr);
+    NS(dbg_print_cond)(hit, fn, ln, cn);
+    //NS(update_hash)((char*)&addr, sizeof(char*));
+    NS(update_hash)((char*)&hit, sizeof(bool));
+    START_OB = true;
+  }
 }
 
 void NS(check_observations)() {

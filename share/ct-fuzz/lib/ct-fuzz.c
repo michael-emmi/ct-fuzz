@@ -64,7 +64,6 @@ void NS(read_inputs)(void);
 void NS(merge_ptr_inputs)(void);
 
 void NS(main)(void) {
-  START_OB = true;
   NS(initialize)();
   NS(read_inputs)();
 
@@ -73,6 +72,7 @@ void NS(main)(void) {
 
   //NS(merge_ptr_inputs)();
 
+  START_OB = true;
   for (RUN_ID = 0; RUN_ID < 2; ++RUN_ID) {
     pid_t pid = fork();
     if (pid == -1)
