@@ -4,10 +4,19 @@
 #include <stdint.h>
 #include "ct-fuzz-utils.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void NS(public_in)();
 void NS(assume)(bool, char* msg);
 uint16_t NS(get_arr_len)(const char* const);
-void NS(ptr_len)(char* ptr, unsigned short len, unsigned short max_len);
+void NS(ptr_len)(unsigned char* ptr, unsigned short len, unsigned short max_len);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #define CT_FUZZ_SPEC(RET,F,...) \
   RET F(__VA_ARGS__); \
