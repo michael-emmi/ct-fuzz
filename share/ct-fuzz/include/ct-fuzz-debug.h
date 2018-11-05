@@ -11,8 +11,11 @@
 
 typedef uint32_t num_t;
 
+extern bool DEBUG_ON;
+
 extern void NS(dbg_print_cond)(bool cond, char* fn, num_t ln, num_t cn);
 extern void NS(dbg_print_addr)(char* addr, char* fn, num_t ln, num_t cn);
+extern void NS(dbg_print_cache_access)(char* addr, bool hit, char* fn, num_t ln, num_t cn);
 extern void DEBUG_PRINT_MSG(char* s);
 extern void NS(dbg_init)();
 #endif

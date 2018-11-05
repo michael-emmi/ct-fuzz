@@ -24,6 +24,8 @@ def arguments():
             help='output binary')
     parser.add_argument('--seed-file', metavar='FILE', default=None, type=str,
             help='file containing generated seeds (optional)')
+    parser.add_argument('--memory-leakage', metavar='OPTIONS', default='address', type=str,
+            help='memory leakage model: address (default), cache')
 
     args = parser.parse_args()
     return args
@@ -87,7 +89,8 @@ def build_libs(args):
     return map(lambda l: compile_c_file(args, l), lib_file_paths)
 
 def link_bc_files(input_bc_file, lib_bc_files, args):
-    cmd = ['llvm-link', input_bc_file] + lib_bc_files
+    f = lambda f: not (('cache' if args.memory_leakage == 'address' else 'memory') in f)
+    cmd = ['llvm-link', input_bc_file] + filter(f, lib_bc_files)
     args.opt_in_file = make_file(args.input_file_name+'_pre_inst', '.bc', args)
     cmd += ['-o', args.opt_in_file]
     try_command(cmd);
