@@ -70,6 +70,10 @@ SEED_UNIT(short, B, 42)
 // note that for primitive types, constants can be directly passed via PRODUCE
 PRODUCE(foo, A, B, 24)
 ```
+Note if the seed generation function is defined in a C++ file, then all the seeds of array types passed to `PRODUCE` must drop their constantness via `const_cast` conversion. For example,
+```C++
+PRODUCE(foo, const_cast<char*>A, B)
+```
 ## Special Utility Functions
 Macro `CT_FUZZ_ASSUME` is used to place assumptions. If the condition argument doesn't hold, the execution stops.
 
