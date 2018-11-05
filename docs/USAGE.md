@@ -1,4 +1,17 @@
 # Annotations
+## Requirement for C++ Programs
+If the program to test is written in C++, all the annotation functions defined as described in the following sections as well as the entry point function must be wrapped with `extern "C"`. For example,
+```C++
+extern "C" {
+// source function
+void foo(...) {...}
+
+// specification definitions
+CT_FUZZ_SPEC(...) {...}
+CT_FUZZ_SEED(...) {...}
+}
+```
+
 ## Specification Annotations
 We use `CT_FUZZ_SPEC` macro to annotate a function. Annotation macro starts with the return type of a function, then the function name, followed by function arguments. For example,
 ```C
