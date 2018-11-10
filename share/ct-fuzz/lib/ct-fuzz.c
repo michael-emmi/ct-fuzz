@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <assert.h>
 #include "ct-fuzz-debug.h"
 #include "ct-fuzz-observation.h"
 #include "ct-fuzz-read.h"
@@ -84,6 +85,7 @@ void NS(main)(void) {
     else {
       int status;
       (void)waitpid(pid, &status, 0);
+      assert(WIFEXITED(status) && "Execution of libraries not successful!");
     }
   }
 
