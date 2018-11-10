@@ -1,4 +1,17 @@
 # Annotations
+## Requirement for C++ Programs
+If the program to test is written in C++, all the annotation functions defined as described in the following sections as well as the entry point function must be wrapped with `extern "C"`. For example,
+```C++
+extern "C" {
+// source function
+void foo(...) {...}
+
+// specification definitions
+CT_FUZZ_SPEC(...) {...}
+CT_FUZZ_SEED(...) {...}
+}
+```
+
 ## Specification Annotations
 We use `CT_FUZZ_SPEC` macro to annotate a function. Annotation macro starts with the return type of a function, then the function name, followed by function arguments. For example,
 ```C
@@ -56,6 +69,10 @@ SEED_1D_ARR(char, A, 2, {'a','b'})
 SEED_UNIT(short, B, 42)
 // note that for primitive types, constants can be directly passed via PRODUCE
 PRODUCE(foo, A, B, 24)
+```
+Note if the seed generation function is defined in a C++ file, then all the seeds of array types passed to `PRODUCE` must drop their constantness via `const_cast` conversion. For example,
+```C++
+PRODUCE(foo, const_cast<char*>A, B)
 ```
 ## Special Utility Functions
 Macro `CT_FUZZ_ASSUME` is used to place assumptions. If the condition argument doesn't hold, the execution stops.
