@@ -69,13 +69,14 @@ def prep_and_clean_up(func):
             remove_temp_files()
     return do
 
-def compile_c_file(args, c_file_name):
+def compile_c_file(args, c_file_name, lib=False):
     cmd = [afl_clang_fast_path(), '-O'+str(args.opt_level), '-c']
     cmd += [c_file_name]
     cmd += ['-emit-llvm']
     cmd += ['-I'+ct_fuzz_include_dir()]
     cmd += ['-I'+xxHash_include_dir()]
-    cmd += args.compiler_options.split()
+    if not lib:
+      cmd += args.compiler_options.split()
     output_file = make_file(get_file_name(c_file_name), '.bc', args)
     cmd += ['-o', output_file]
     if sys.stdout.isatty(): cmd += ['-fcolor-diagnostics']
@@ -86,7 +87,7 @@ def compile_c_file(args, c_file_name):
 def build_libs(args):
     lib_file_paths = map(lambda l: os.path.join(ct_fuzz_lib_dir(), l), filter(
         lambda f: os.path.splitext(f)[1] == '.c', os.listdir(ct_fuzz_lib_dir())))
-    return map(lambda l: compile_c_file(args, l), lib_file_paths)
+    return map(lambda l: compile_c_file(args, l, True), lib_file_paths)
 
 def link_bc_files(input_bc_file, lib_bc_files, args):
     f = lambda f: not (('cache' if args.memory_leakage == 'address' else 'memory') in f)
