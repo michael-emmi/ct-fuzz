@@ -36,3 +36,7 @@ See [usage].
 [LLVM]: http://llvm.org
 [jemalloc]: http://jemalloc.net
 [usage]: docs/USAGE.md
+
+## Paper
+
+Please cite the paper in this link: https://arxiv.org/abs/1904.07280
