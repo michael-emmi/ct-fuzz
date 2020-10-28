@@ -39,4 +39,4 @@ See [usage].
 
 ## Paper
 
-Please cite the paper in this link: https://arxiv.org/abs/1904.07280
+Please cite the paper in this link: https://ieeexplore.ieee.org/document/9159066
